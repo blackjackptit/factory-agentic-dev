@@ -1,14 +1,21 @@
 # Gold Price Monitor Skill
 
-Monitor real-time gold prices automatically every 30 seconds.
+Monitor real-time gold prices automatically every 30 seconds with automatic data logging and analysis.
 
 ## Activation
 
 This skill is activated when the user runs `/gold-price` or asks to check gold prices.
 
+## Features
+
+- Real-time gold price monitoring with 30-second updates
+- Automatic price data logging to JSON files (organized by date)
+- Historical price analysis with statistics and trends
+- Price change indicators and percentage calculations
+
 ## Instructions
 
-When this skill is activated, run the gold price monitor script in the background to display live gold prices every 30 seconds.
+When this skill is activated, run the gold price monitor script to display live gold prices. All prices are automatically saved to the `output/` folder for later analysis.
 
 ### Usage
 
@@ -22,6 +29,7 @@ python3 .claude/skills/gold-price/monitor.py --duration 5
 
 - `--duration [minutes]` - How long to run the monitor (default: 5 minutes)
 - `--once` - Get a single price check instead of continuous monitoring
+- `--analyze` - Analyze all saved price data and display statistics
 
 ### Examples
 
@@ -40,4 +48,27 @@ python3 .claude/skills/gold-price/monitor.py --duration 5
    python3 .claude/skills/gold-price/monitor.py --once
    ```
 
-Run the appropriate command based on user request. Use `--once` for single checks, otherwise start the continuous monitor.
+4. **Analyze saved price data:**
+   ```bash
+   python3 .claude/skills/gold-price/monitor.py --analyze
+   ```
+
+### Data Storage
+
+All fetched prices are automatically saved to:
+```
+.claude/skills/gold-price/output/gold_prices_YYYY-MM-DD.json
+```
+
+Each file contains all price data for that specific day, making it easy to track historical trends.
+
+### Analysis Features
+
+The `--analyze` option provides:
+- Total data points and date range
+- Price statistics (current, average, highest, lowest, range)
+- Overall price movement with percentage change
+- Recent trend analysis (last 10 readings)
+- Data source breakdown
+
+Run the appropriate command based on user request. Use `--once` for single checks, `--analyze` to view historical data, or start the continuous monitor with `--duration`.

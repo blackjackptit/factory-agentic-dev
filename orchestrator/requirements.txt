@@ -1,0 +1,2 @@
+# No external dependencies required
+# The orchestrator uses Claude Code CLI directly via subprocess
