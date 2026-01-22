@@ -50,20 +50,36 @@ class ClaudeAPI:
                 timeout=timeout
             )
 
-            return {
-                "response": result.stdout,
-                "success": result.returncode == 0
-            }
+            if result.returncode == 0:
+                return {
+                    "response": result.stdout,
+                    "success": True
+                }
+            else:
+                # Return detailed error information
+                error_msg = f"Claude CLI returned exit code {result.returncode}"
+                if result.stderr:
+                    error_msg += f"\nStderr: {result.stderr}"
+                if result.stdout:
+                    error_msg += f"\nStdout: {result.stdout}"
+
+                return {
+                    "response": error_msg,
+                    "success": False,
+                    "error": error_msg
+                }
 
         except subprocess.TimeoutExpired:
             return {
                 "response": "Claude Code CLI timeout",
-                "success": False
+                "success": False,
+                "error": "Claude Code CLI timeout"
             }
         except Exception as e:
             return {
                 "response": str(e),
-                "success": False
+                "success": False,
+                "error": str(e)
             }
 
     def health_check(self) -> bool:

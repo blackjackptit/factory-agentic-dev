@@ -177,9 +177,18 @@ This test suite was automatically generated. Review and customize as needed.
         print("🧪 TESTING PHASE")
         print("="*70)
 
+        print("\n[Step 1/7] Extracting implementation details...")
         # Extract implementation details
         implementation_code = implementation_result.get("response", "")
+        print(f"  Implementation code length: {len(implementation_code)} characters")
 
+        # Check if source files info is available
+        source_files = implementation_result.get("source_files", {})
+        if source_files:
+            files_count = source_files.get("files_created", 0)
+            print(f"  Source files created: {files_count}")
+
+        print("\n[Step 2/7] Building testing strategy prompt...")
         # Create comprehensive testing prompt
         testing_prompt = f"""You are a senior QA engineer and testing expert. Create a comprehensive automated testing suite for the React application.
 
@@ -264,6 +273,10 @@ Use this format for EVERY test file:
 ```
 
 Provide complete, working test code that follows testing best practices. Include both Jest/RTL tests and E2E tests where appropriate."""
+        print(f"  Testing prompt prepared ({len(testing_prompt)} characters)")
+
+        print("\n[Step 3/7] Delegating to Claude API...")
+        print("  Sending test generation task to AI subagent")
 
         # Delegate to orchestrator
         result = self.orchestrator.delegate_to_subagent(
@@ -276,17 +289,29 @@ Provide complete, working test code that follows testing best practices. Include
             }
         )
 
+        print("\n[Step 4/7] Processing testing response...")
         if result.get("success"):
-            print("\n✓ Test suite created successfully")
+            response_text = result.get("response", "")
+            response_length = len(response_text)
+            print(f"  Response received ({response_length} characters)")
+            print("  Parsing test code from response")
+
+            print("\n[Step 5/7] Extracting test code blocks...")
+            # Count test code blocks in response
+            import re
+            test_blocks = re.findall(r'```(?:javascript|jsx?|typescript|tsx?)', response_text)
+            print(f"  Found {len(test_blocks)} test code blocks to extract")
 
             # Extract and create test files
-            print("\n📁 Creating test files...")
-            response_text = result.get("response", "")
+            print("\n[Step 6/7] Creating test files...")
             files_info = self.create_test_files(response_text)
+            print(f"  Created {files_info['files_created']} test files")
 
             # Add files info to result
             result["test_files"] = files_info
 
+            print("\n[Step 7/7] Finalizing testing phase...")
+            print("\n✓ Test suite created successfully")
             print("\nTesting deliverables:")
             print("  - Testing strategy defined")
             print("  - Unit tests for components")
@@ -296,6 +321,9 @@ Provide complete, working test code that follows testing best practices. Include
             print("  - Setup and run instructions")
             print(f"  - {files_info['files_created']} test files created in __tests__/")
         else:
+            error = result.get("error", "Unknown error")
+            print(f"  Error occurred: {error}")
+            print("\n[Step 7/7] Testing phase failed")
             print("\n✗ Testing phase failed")
 
         return result
