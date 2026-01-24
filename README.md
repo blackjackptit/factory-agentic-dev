@@ -390,8 +390,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 # 🙏 Acknowledgments
 
-- Built with [Claude Code CLI](https://github.com/anthropics/claude-code)
-- Powered by Anthropic's Claude Sonnet 4.5
 - Inspired by agentic AI development patterns
 
 ---
@@ -444,6 +442,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ by AI-powered orchestration**
+# 📚 Documentation
 
-*Turning ideas into production-ready code with intelligent task coordination*
+- **[Documentation Index](docs/README.md)** - Complete documentation for both orchestrators
+- **[Website Orchestrator Quick Start](docs/website-orchestrator-quickstart.md)** - Generate web applications
+- **[Parallel Orchestrator Overview](docs/parallel-orchestrator-readme.md)** - Execute parallel tasks
+- **[Architecture Diagrams](docs/parallel-orchestrator-architecture.md)** - System architecture
+
+---
+
+**Last Updated:** January 2026
+**Version:** 2.0 - Unified Documentation Structure

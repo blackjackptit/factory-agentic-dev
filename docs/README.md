@@ -26,7 +26,8 @@ Centralized documentation for Factory Agentic Dev - covering both the Website Or
 
 ## ⚡ Parallel Task Orchestrator Documentation
 
-### Documentation
+### Quick Start
+- **[Overview & Features](parallel-orchestrator-readme.md)** - Complete system overview and usage guide
 - **[Quick Start Guide](parallel-orchestrator-quickstart.md)** - Get up and running quickly
 - **[Architecture](parallel-orchestrator-architecture.md)** - Complete architecture with 9 Mermaid diagrams
 
@@ -57,6 +58,7 @@ docs/
 ├── website-orchestrator-structure.md                  # Website project structure
 ├── website-orchestrator-test-results.md               # Website test results
 │
+├── parallel-orchestrator-readme.md                    # Parallel orchestrator overview
 ├── parallel-orchestrator-quickstart.md                # Parallel quick start guide
 └── parallel-orchestrator-architecture.md              # Architecture with 9 Mermaid diagrams
 ```
@@ -74,7 +76,10 @@ docs/
 → Start with [Parallel Orchestrator Quick Start](parallel-orchestrator-quickstart.md)
 
 **Understand the system architecture**
-→ See [Website Project Structure](website-orchestrator-structure.md) or [Parallel Orchestrator Architecture](parallel-orchestrator-architecture.md)
+→ See [Website Project Structure](website-orchestrator-structure.md) or [Parallel Architecture](parallel-orchestrator-architecture.md)
+
+**Learn about parallel task orchestration**
+→ Read [Parallel Orchestrator Overview](parallel-orchestrator-readme.md)
 
 **See example results and metrics**
 → Check [Website Test Results](website-orchestrator-test-results.md)
@@ -89,7 +94,7 @@ docs/
 | **AI Usage** | Fixed workflow | Dynamic task planning |
 | **Parallelization** | 3 sequential subagents | M workers, N tasks (N > M) |
 | **Output** | Complete web app | Task results & metrics |
-| **Documentation** | [Quick Start](website-orchestrator-quickstart.md) | [Quick Start](parallel-orchestrator-quickstart.md) |
+| **Documentation** | [Quick Start](website-orchestrator-quickstart.md) | [Overview](parallel-orchestrator-readme.md) |
 
 ---
 

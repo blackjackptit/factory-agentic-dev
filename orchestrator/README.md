@@ -393,10 +393,24 @@ To add a new subagent:
 3. Import and use in `orchestrator.py`
 4. Update documentation
 
-## License
+## 📚 Documentation
 
-Part of the factory-agentic-dev project.
+- **[Quick Start Guide](../docs/website-orchestrator-quickstart.md)** - Step-by-step tutorial
+- **[Project Structure](../docs/website-orchestrator-structure.md)** - Detailed architecture
+- **[Test Results](../docs/website-orchestrator-test-results.md)** - Example outputs
+- **[Documentation Index](../docs/README.md)** - All documentation
 
-## Support
+## 📄 License
 
-For issues and questions, refer to the main project repository.
+Part of the Factory Agentic Dev project.
+
+## 📞 Support
+
+- **Issues:** [GitHub Issues](https://github.com/blackjackptit/factory-agentic-dev/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/blackjackptit/factory-agentic-dev/discussions)
+- **Main README:** [Project Overview](../README.md)
+
+---
+
+**Last Updated:** January 2026
+**Version:** 2.0 - Unified Documentation Structure

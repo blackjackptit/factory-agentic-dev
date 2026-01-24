@@ -520,3 +520,18 @@ The Parallel Orchestrator provides an intelligent, AI-powered solution for compl
 - **Significant Performance**: Up to Mx faster than sequential execution
 
 The system combines AI-powered planning with efficient task queue execution to deliver consistent, high-quality results while maintaining simplicity and ease of use.
+
+---
+
+## 📚 Related Documentation
+
+- **[Main README](../README.md)** - Project overview
+- **[Parallel Orchestrator Overview](parallel-orchestrator-readme.md)** - Complete system guide
+- **[Quick Start Guide](parallel-orchestrator-quickstart.md)** - Get started quickly
+- **[Parallel Orchestrator README](../parallel-orchestrator/README.md)** - Quick reference
+- **[Documentation Index](README.md)** - All documentation
+
+---
+
+**Last Updated:** January 2026
+**Version:** 2.0 - Unified Documentation Structure
