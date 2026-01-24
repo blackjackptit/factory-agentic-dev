@@ -1,23 +1,28 @@
 # Factory Agentic Dev 🏭
 
-> AI-Powered Full-Stack Web Application Generator using Claude Code Orchestrator
+> AI-Powered Development Orchestration System using Claude Code
 
-An intelligent orchestration system that coordinates specialized AI subagents to automatically generate complete, production-ready web applications with React frontend, Python backend, and comprehensive test suites.
+An intelligent orchestration platform with two powerful systems: a **Website Generator** for full-stack applications and a **Parallel Task Orchestrator** for dynamic multi-agent execution with AI-powered task planning.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 🎯 Overview
 
-Factory Agentic Dev is an AI-powered orchestrator that uses Claude Code CLI to automatically generate full-stack web applications. It coordinates three specialized subagents (Design, Implementation, Testing) to create production-ready code with detailed documentation.
+Factory Agentic Dev provides two complementary AI orchestration systems:
 
-### What It Generates
+### 1. Website Orchestrator 🌐
+Automatically generates complete, production-ready web applications using specialized AI subagents (Design, Implementation, Testing).
 
-- **React Frontend** - Modern, component-based UI with CSS styling
-- **Python Backend** - FastAPI/Flask RESTful APIs with CORS configuration
-- **Complete Test Suite** - Jest, Cypress, and accessibility tests
-- **Documentation** - Setup instructions, API docs, testing guides
+### 2. Parallel Task Orchestrator ⚡
+Intelligent task queue system where M executor workers dynamically process N tasks (N can be > M) with AI-powered planning and automatic load balancing.
 
-## ✨ Features
+---
+
+# 🌐 Website Orchestrator
+
+> Generate full-stack web applications automatically
+
+## Features
 
 ### 🎨 Design Subagent
 - Creates comprehensive UI/UX design specifications
@@ -42,54 +47,23 @@ Factory Agentic Dev is an AI-powered orchestrator that uses Claude Code CLI to a
 - Includes coverage configuration
 - **7-step progress logging** with file tracking
 
-## 📊 Example Output
+## What It Generates
 
-A single command generates a complete application:
+- **React Frontend** - Modern, component-based UI with CSS styling
+- **Python Backend** - FastAPI/Flask RESTful APIs with CORS configuration
+- **Complete Test Suite** - Jest, Cypress, and accessibility tests
+- **Documentation** - Setup instructions, API docs, testing guides
 
-```bash
-python orchestrator/build_website.py "build a todo list app with add, delete, and mark as complete features"
-```
+## Quick Start
 
-**Result:** 37+ files with 137,000+ characters of production-ready code
-- 10 React components
-- 9 Python backend files
-- 17 comprehensive test files
-- Complete documentation
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+
-- [Claude Code CLI](https://github.com/anthropics/claude-code) installed and configured
-- Git
-
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/blackjackptit/factory-agentic-dev.git
-cd factory-agentic-dev
-```
-
-2. **Install Python dependencies**
-```bash
-pip install -r orchestrator/requirements.txt
-```
-
-3. **Verify Claude Code CLI**
-```bash
-claude --version
-```
-
-### Usage
-
-#### Generate a Web Application
+### Generate a Web Application
 
 ```bash
 cd orchestrator
-python build_website.py "your app description" --output-dir ../outputs/my-app
+python build_website.py "your app description"
+
+# Or specify custom output location
+python build_website.py "your app description" --output-dir ../outputs/website-orchestrator/my-app
 ```
 
 **Examples:**
@@ -101,18 +75,15 @@ python build_website.py "build a todo list with add, edit, and delete features"
 # Calculator App
 python build_website.py "build a calculator with basic operations"
 
-# Contact Form
-python build_website.py "create a contact form with validation"
-
 # E-commerce Product Catalog
 python build_website.py "build a product catalog with shopping cart"
 ```
 
-#### Run the Generated Application
+### Run the Generated Application
 
 **Backend (Python/FastAPI):**
 ```bash
-cd outputs/my-app/backend
+cd ../outputs/website-orchestrator/<project-name>/backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -122,7 +93,7 @@ Backend runs on: http://localhost:8000
 
 **Frontend (React):**
 ```bash
-cd outputs/my-app
+cd ../outputs/website-orchestrator/<project-name>
 npm install
 npm start
 ```
@@ -134,150 +105,245 @@ npm test                    # Unit tests
 npm run cypress:open       # E2E tests
 ```
 
-## 📁 Project Structure
+## Example Output
+
+A single command generates a complete application:
+
+```bash
+python orchestrator/build_website.py "build a todo list app"
+```
+
+**Result:** 37+ files with 137,000+ characters of production-ready code
+- 10 React components
+- 9 Python backend files
+- 17 comprehensive test files
+- Complete documentation
+
+📖 **[Full Documentation](docs/website-orchestrator-quickstart.md)**
+
+---
+
+# ⚡ Parallel Task Orchestrator
+
+> AI-powered task queue system with dynamic executor allocation
+
+## Features
+
+### 💰 Flexible Executor Budget
+- You specify the budget (max executors), AI decides optimal task count
+- Example: Budget of 3 executors can handle 6 tasks dynamically
+
+### 🤖 AI-Powered Planning
+- Uses Claude Code for intelligent complexity analysis
+- Determines optimal number of tasks to create (N)
+- Creates detailed task descriptions with dependencies and effort estimates
+- Domain-agnostic: works for ML, games, mobile, data analytics, web, etc.
+
+### ⚡ Task Queue Execution
+- M executor workers process N tasks dynamically (N can be > M)
+- Automatic load balancing: fast workers handle more tasks
+- Dependency-aware: tasks wait for prerequisites automatically
+- Thread-safe operations with proper locks
+
+### 🔄 Dynamic Task Allocation
+- Executors continuously pull tasks from queue
+- Check dependencies before executing
+- Graceful shutdown when queue is empty
+
+## How It Works
+
+```
+1. User sets budget: --max-executors 3
+2. AI analyzes and creates 6 tasks
+3. Orchestrator spawns 3 executor workers
+4. Workers continuously pull tasks from queue
+5. Check dependencies before executing
+6. Complete task and pick next available
+7. Shut down when all tasks done
+```
+
+## Quick Start
+
+```bash
+cd parallel-orchestrator
+
+# Simple task with default budget (max 5 executors)
+python3 orchestrator.py "Create a calculator function"
+
+# Moderate task with custom budget
+python3 orchestrator.py "Build todo list with backend and frontend" --max-executors 3
+
+# Complex task with large budget
+python3 orchestrator.py "Build microservices platform" --max-executors 10
+
+# Custom output directory (default: ../outputs/parallel-orchestrator/)
+python3 orchestrator.py "Your requirements" --output-dir ../outputs/parallel-orchestrator/my-project --max-executors 8
+
+# View all options
+python3 orchestrator.py --help
+```
+
+## Example Execution
+
+**Input:**
+```bash
+python3 orchestrator.py "Build a todo list app with backend API and frontend UI" --max-executors 3
+```
+
+**Result:**
+- ✅ AI created 6 tasks for 3 executors (2:1 ratio)
+- ✅ 3 executor workers spawned
+- ✅ Dynamic task allocation worked perfectly
+- ✅ Executor-1 completed 2 tasks (task_1, task_2)
+- ✅ Executor-2 completed 4 tasks (task_3, task_4, task_5, task_6)
+- ✅ Executor-3 correctly shut down (dependencies covered)
+- ✅ 100% success rate, 18 files created, 1400 LOC
+
+## Task Queue Benefits
+
+✅ **Better Parallelization**: Can create more tasks than executors (e.g., 10 tasks for 5 executors)
+✅ **Automatic Load Balancing**: Fast executors naturally handle more tasks
+✅ **Dependency Management**: Tasks automatically wait for prerequisites
+✅ **No Idle Workers**: Executors continuously work until queue is empty
+✅ **Resource Efficiency**: Only spawn workers needed, never more than budget
+
+## Python API
+
+```python
+from orchestrator import ParallelOrchestrator
+
+# Create orchestrator with budget
+orchestrator = ParallelOrchestrator(
+    requirements="Build enterprise system with microservices",
+    output_dir="enterprise-project"
+)
+orchestrator.max_executors = 10  # Budget of 10 executors
+
+# Run orchestration (planner decides optimal task count)
+summary = orchestrator.run()
+
+# Check results
+print(f"Tasks created: {summary['total_tasks']}")
+print(f"Executors used: {min(summary['total_tasks'], 10)}")
+print(f"Success rate: {summary['success_rate']}")
+print(f"Files created: {summary['total_files_created']}")
+```
+
+📖 **[Quick Start Guide](docs/parallel-orchestrator-quickstart.md)** | 🏗️ **[Architecture](docs/parallel-orchestrator-architecture.md)**
+
+---
+
+# 📁 Project Structure
 
 ```
 factory-agentic-dev/
-├── orchestrator/
-│   ├── orchestrator.py              # Main orchestration logic
-│   ├── claude_api.py                # Claude Code CLI integration
-│   ├── build_website.py             # CLI entry point
+├── orchestrator/                      # Website Generator
+│   ├── orchestrator.py                # Main orchestration logic
+│   ├── claude_api.py                  # Claude Code CLI integration
+│   ├── build_website.py               # CLI entry point
 │   └── subagents/
-│       ├── design_agent.py          # UI/UX design generation
-│       ├── implementation_agent.py  # Full-stack code generation
-│       └── testing_agent.py         # Test suite generation
-├── api/                             # Claude Code API server (optional)
-├── outputs/                         # Generated applications (gitignored)
-└── README.md
+│       ├── design_agent.py            # UI/UX design generation
+│       ├── implementation_agent.py    # Full-stack code generation
+│       └── testing_agent.py           # Test suite generation
+│
+├── parallel-orchestrator/             # Parallel Task Orchestrator
+│   ├── orchestrator.py                # Main orchestrator with task queue
+│   ├── planner_agent.py               # AI-powered planning agent
+│   ├── executor_agent.py              # Individual executor implementation
+│   └── demo.py                        # Demo script with scenarios
+│
+├── docs/                              # Centralized Documentation
+│   ├── website-orchestrator-quickstart.md
+│   ├── website-orchestrator-structure.md
+│   ├── website-orchestrator-test-results.md
+│   ├── parallel-orchestrator-quickstart.md
+│   └── parallel-orchestrator-architecture.md
+│
+├── outputs/                           # Centralized Outputs (gitignored)
+│   ├── website-orchestrator/          # Website generator outputs
+│   └── parallel-orchestrator/         # Parallel task orchestrator outputs
+│
+├── api/                               # Claude Code API server (optional)
+└── README.md                          # This file
 ```
 
-## 🎯 Generated Project Structure
+---
 
-```
-outputs/my-app/
-├── src/                    # React Frontend
-│   ├── App.jsx
-│   ├── index.jsx
-│   ├── components/         # React components
-│   ├── styles/             # CSS styling
-│   └── __tests__/          # Frontend tests
-├── backend/                # Python Backend
-│   ├── main.py             # FastAPI server
-│   ├── routes/             # API endpoints
-│   ├── models/             # Data models
-│   ├── schemas/            # Pydantic schemas
-│   ├── services/           # Business logic
-│   ├── tests/              # Backend tests
-│   └── requirements.txt    # Python dependencies
-├── __tests__/              # E2E and integration tests
-│   ├── cypress/
-│   └── jest.config.js
-├── public/
-│   └── index.html
-├── package.json            # NPM dependencies
-├── README.md               # Setup instructions
-└── TESTING.md              # Testing guide
+# 🚀 Installation
+
+### Prerequisites
+
+- Python 3.8+
+- Node.js 18+ (for Website Orchestrator)
+- [Claude Code CLI](https://github.com/anthropics/claude-code) installed and configured
+- Git
+
+### Setup
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/blackjackptit/factory-agentic-dev.git
+cd factory-agentic-dev
 ```
 
-## 🔧 Configuration
+2. **Install Python dependencies**
+```bash
+# For Website Orchestrator
+pip install -r orchestrator/requirements.txt
 
-### Orchestrator Settings
+# Parallel Orchestrator uses Python standard library only
+```
+
+3. **Verify Claude Code CLI**
+```bash
+claude --version
+```
+
+---
+
+# 🔧 Configuration
+
+## Website Orchestrator Settings
 
 Edit `orchestrator/orchestrator.py` to customize:
-
 - Output directory location
 - API timeout settings
 - Subagent behavior
 
-### Claude API Settings
+## Parallel Orchestrator Settings
 
-The orchestrator uses Claude Code CLI with these flags:
-- `--dangerously-skip-permissions` - Auto-approve operations
-- `--print` - Output to stdout
-- `-p` - Pass prompt directly
-
-## 📝 Detailed Logging
-
-All subagents provide detailed step-by-step logging:
-
-**Design Agent (5 steps):**
-```
-[Step 1/5] Analyzing requirements...
-[Step 2/5] Building design prompt...
-[Step 3/5] Delegating to Claude API...
-[Step 4/5] Processing design response...
-[Step 5/5] Finalizing design phase...
-```
-
-**Implementation Agent (9 steps):**
-```
-[Step 1/9] Extracting design specifications...
-[Step 2/9] Building implementation prompt...
-[Step 3/9] Delegating to Claude API...
-[Step 4/9] Processing implementation response...
-[Step 5/9] Extracting frontend code blocks...
-[Step 6/9] Creating frontend source files...
-[Step 7/9] Extracting backend code blocks...
-[Step 8/9] Creating backend source files...
-[Step 9/9] Finalizing implementation phase...
-```
-
-**Testing Agent (7 steps):**
-```
-[Step 1/7] Extracting implementation details...
-[Step 2/7] Building testing strategy prompt...
-[Step 3/7] Delegating to Claude API...
-[Step 4/7] Processing testing response...
-[Step 5/7] Extracting test code blocks...
-[Step 6/7] Creating test files...
-[Step 7/7] Finalizing testing phase...
-```
-
-## 🎨 Example: Generated Calculator App
-
-**Command:**
+Configure via CLI or Python API:
 ```bash
-python build_website.py "build a simple calculator with basic operations"
+# CLI
+python3 orchestrator.py "requirements" --max-executors 10 --output-dir my-project
+
+# Python API
+orchestrator = ParallelOrchestrator(requirements="...", output_dir="...")
+orchestrator.max_executors = 10
 ```
 
-**Generated:**
-- **Frontend:** 10 React components with iOS-style UI
-- **Backend:** 9 Python files with FastAPI server
-- **Tests:** 17 test files (unit, integration, E2E)
-- **Total:** 37 files, 21,000+ lines of code
+---
 
-**Live Demo:** https://github.com/blackjackptit/calculator-fullstack
+# 📊 Comparison
 
-## 🛠️ Advanced Usage
+| Feature | Website Orchestrator | Parallel Task Orchestrator |
+|---------|---------------------|---------------------------|
+| **Purpose** | Generate full-stack web apps | Execute complex tasks in parallel |
+| **AI Planning** | Fixed subagent workflow | Dynamic AI-powered task breakdown |
+| **Parallelization** | 3 subagents (sequential phases) | M workers process N tasks dynamically |
+| **Output** | Complete web application | Task results and metrics |
+| **Use Case** | Web app generation | General parallel task execution |
+| **Task Count** | Fixed (3 subagents) | Dynamic (AI decides N tasks) |
+| **Load Balancing** | N/A | Automatic (task queue model) |
 
-### Custom Output Directory
-```bash
-python build_website.py "app description" --output-dir /path/to/output
-```
+---
 
-### Custom Project Directory
-```bash
-python build_website.py "app description" --project-dir /path/to/project
-```
-
-### Using as Python Module
-```python
-from orchestrator import WebsiteOrchestrator
-
-orchestrator = WebsiteOrchestrator(
-    project_dir="/path/to/project",
-    output_dir="/path/to/output"
-)
-
-result = orchestrator.build_website("build a todo app")
-print(f"Success: {result['success']}")
-```
-
-## 🔍 Troubleshooting
+# 🔍 Troubleshooting
 
 ### Claude Code CLI Issues
 
 **Problem:** `Claude Code CLI is not available!`
+
 **Solution:** Install Claude Code CLI and ensure it's in your PATH
 ```bash
 which claude
@@ -285,23 +351,24 @@ claude --version
 ```
 
 **Problem:** API timeout
-**Solution:** Increase timeout in `claude_api.py`:
-```python
-def query(self, prompt: str, cwd: Optional[str] = None, timeout: int = 1200):
-```
+
+**Solution:** Increase timeout in `claude_api.py` or orchestrator settings
 
 ### Generation Issues
 
 **Problem:** Few or no files generated
+
 **Solution:** Check the output logs for warnings:
 ```
 ⚠️ WARNING: Response seems too short for full code implementation
-⚠️ WARNING: Very few frontend files created. Code blocks may be missing.
+⚠️ WARNING: Very few frontend files created
 ```
 
 The orchestrator includes automatic detection and warnings for incomplete responses.
 
-## 🤝 Contributing
+---
+
+# 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -313,23 +380,32 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📜 License
+---
+
+# 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+---
+
+# 🙏 Acknowledgments
 
 - Built with [Claude Code CLI](https://github.com/anthropics/claude-code)
 - Powered by Anthropic's Claude Sonnet 4.5
 - Inspired by agentic AI development patterns
 
-## 📞 Support
+---
+
+# 📞 Support
 
 - **Issues:** [GitHub Issues](https://github.com/blackjackptit/factory-agentic-dev/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/blackjackptit/factory-agentic-dev/discussions)
 
-## 🗺️ Roadmap
+---
 
+# 🗺️ Roadmap
+
+## Website Orchestrator
 - [ ] Add Vue.js frontend support
 - [ ] Add Django backend option
 - [ ] Docker containerization templates
@@ -338,15 +414,36 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Authentication/authorization templates
 - [ ] Deployment configuration (Vercel, AWS, GCP)
 
-## 📊 Stats
+## Parallel Task Orchestrator
+- [x] Task queue execution model
+- [x] AI-powered planning
+- [x] Dynamic dependency management
+- [x] Automatic load balancing
+- [ ] Cloud deployment (distributed workers)
+- [ ] Real-time dashboard (Web UI)
+- [ ] Quality scoring
+- [ ] Auto-retry logic
+- [ ] Resource limits per worker
+- [ ] Distributed task queues (Redis, RabbitMQ)
 
+---
+
+# 📊 Stats
+
+## Website Orchestrator
 - **Languages:** Python, JavaScript, TypeScript
 - **Frameworks:** React, FastAPI, Flask, Jest, Cypress
 - **Generated Files:** 30-50 per project
 - **Code Generated:** 100,000+ lines per full-stack app
 
+## Parallel Task Orchestrator
+- **Language:** Python (standard library only)
+- **AI Integration:** Claude Code API
+- **Execution Model:** Task queue with M workers for N tasks
+- **Domains Supported:** Web, ML, Games, Mobile, Data, Media, etc.
+
 ---
 
 **Made with ❤️ by AI-powered orchestration**
 
-*Generated by Claude Code Orchestrator - Turning ideas into production-ready code*
+*Turning ideas into production-ready code with intelligent task coordination*

@@ -32,7 +32,9 @@ class WebsiteOrchestrator:
         """
         self.api = ClaudeAPI(project_dir)
         self.project_dir = os.path.abspath(project_dir or os.getcwd())
-        self.output_dir = os.path.abspath(output_dir or os.path.join(os.path.dirname(__file__), "output"))
+        # Default to centralized outputs directory
+        default_output = os.path.join(os.path.dirname(os.path.dirname(__file__)), "outputs", "website-orchestrator")
+        self.output_dir = os.path.abspath(output_dir or default_output)
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
         # Subagent results storage

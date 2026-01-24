@@ -53,7 +53,7 @@ Examples:
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Output directory for results (default: ./orchestrator/output)"
+        help="Output directory for results (default: ../outputs/website-orchestrator/)"
     )
 
     args = parser.parse_args()
