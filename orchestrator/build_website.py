@@ -22,14 +22,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Build a simple todo app
+  # Build a simple todo app (local execution)
   python build_website.py "Build a todo list app with add, edit, and delete functionality"
 
-  # Build an e-commerce site
-  python build_website.py "Create a product catalog with shopping cart and checkout"
+  # Build with Docker execution
+  python build_website.py "Build a blog website" --docker
 
-  # Build a dashboard
-  python build_website.py "Build an analytics dashboard with charts and data tables"
+  # Build with Docker and AWS Bedrock
+  python build_website.py "Create a dashboard" --docker --docker-use-bedrock
+
+  # Build with custom Docker image
+  python build_website.py "Build an e-commerce site" --docker --docker-image my-image:latest
+
+  # Build with custom AWS Bedrock settings
+  python build_website.py "Build a landing page" --docker --docker-use-bedrock --docker-bedrock-region us-east-1
 
   # Specify custom project directory
   python build_website.py "Build a blog website" --project-dir ./my-blog
@@ -56,6 +62,38 @@ Examples:
         help="Output directory for results (default: ../outputs/website-orchestrator/)"
     )
 
+    # Docker execution options
+    parser.add_argument(
+        "--docker",
+        action="store_true",
+        help="Run agents in Docker containers"
+    )
+
+    parser.add_argument(
+        "--docker-image",
+        default="orchestrator-agents:latest",
+        help="Docker image to use (default: orchestrator-agents:latest)"
+    )
+
+    # AWS Bedrock options
+    parser.add_argument(
+        "--docker-use-bedrock",
+        action="store_true",
+        help="Use AWS Bedrock instead of Anthropic API"
+    )
+
+    parser.add_argument(
+        "--docker-bedrock-region",
+        default="eu-central-1",
+        help="AWS region for Bedrock (default: eu-central-1)"
+    )
+
+    parser.add_argument(
+        "--docker-bedrock-model",
+        default="global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        help="Bedrock model ID (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)"
+    )
+
     args = parser.parse_args()
 
     # Print header
@@ -67,6 +105,14 @@ Examples:
     print("  ⚛️  Implementation Agent - Builds React components")
     print("  🧪 Testing Agent - Creates automated test suite")
     print()
+    print(f"Execution Mode: {'Docker' if args.docker else 'Local'}")
+    if args.docker:
+        print(f"Docker Image: {args.docker_image}")
+        print(f"AI Mode: {'AWS Bedrock' if args.docker_use_bedrock else 'Anthropic API'}")
+        if args.docker_use_bedrock:
+            print(f"Bedrock Region: {args.docker_bedrock_region}")
+            print(f"Bedrock Model: {args.docker_bedrock_model}")
+    print()
 
     # Setup project directory
     project_dir = args.project_dir or os.getcwd()
@@ -75,19 +121,36 @@ Examples:
     # Create orchestrator
     orchestrator = WebsiteOrchestrator(
         project_dir=project_dir,
-        output_dir=output_dir
+        output_dir=output_dir,
+        use_docker=args.docker,
+        docker_image=args.docker_image,
+        use_bedrock=args.docker_use_bedrock,
+        bedrock_region=args.docker_bedrock_region,
+        bedrock_model=args.docker_bedrock_model
     )
 
     # Check Claude Code CLI availability
-    print("Checking Claude Code CLI availability...")
+    if args.docker:
+        print("Checking Docker availability...")
+    else:
+        print("Checking Claude Code CLI availability...")
+
     if not orchestrator.check_claude_available():
-        print("\n❌ ERROR: Claude Code CLI is not available!")
-        print("\nPlease make sure the 'claude' command is installed and in your PATH.")
-        print("You can install it from: https://github.com/anthropics/claude-code")
+        if args.docker:
+            print("\n❌ ERROR: Docker is not available!")
+            print("\nPlease make sure Docker is installed and running.")
+            print("You can install it from: https://www.docker.com/get-started")
+        else:
+            print("\n❌ ERROR: Claude Code CLI is not available!")
+            print("\nPlease make sure the 'claude' command is installed and in your PATH.")
+            print("You can install it from: https://github.com/anthropics/claude-code")
         print()
         sys.exit(1)
 
-    print("✓ Claude Code CLI is ready\n")
+    if args.docker:
+        print("✓ Docker is ready\n")
+    else:
+        print("✓ Claude Code CLI is ready\n")
 
     # Run orchestration
     try:
