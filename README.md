@@ -302,6 +302,11 @@ summary = orchestrator.run()
 
 ## Documentation
 
+### Website Orchestrator
+- **[README](docs/website-orchestrator-readme.md)** - Complete documentation and usage guide
+- **[Architecture](docs/website-orchestrator-architecture.md)** - System design and diagrams
+
+### Parallel Task Orchestrator
 - **[Quick Start Guide](docs/parallel-orchestrator-quickstart.md)** - Get started quickly
 - **[Complete Overview](docs/parallel-orchestrator-readme.md)** - Full documentation
 - **[Architecture](docs/parallel-orchestrator-architecture.md)** - System diagrams
@@ -312,14 +317,17 @@ summary = orchestrator.run()
 
 ```
 factory-agentic-dev/
-├── orchestrator/                      # Website Generator
+├── orchestrator/                      # Website Orchestrator
 │   ├── orchestrator.py                # Main orchestration logic
-│   ├── claude_api.py                  # Claude Code CLI integration
+│   ├── claude_api.py                  # Claude API integration (Anthropic/Bedrock)
 │   ├── build_website.py               # CLI entry point
-│   └── subagents/
-│       ├── design_agent.py            # UI/UX design generation
-│       ├── implementation_agent.py    # Full-stack code generation
-│       └── testing_agent.py           # Test suite generation
+│   ├── design_agent.py                # UI/UX design generation
+│   ├── implementation_agent.py        # Full-stack code generation
+│   ├── testing_agent.py               # Test suite generation
+│   ├── docker_agent_executor.py       # Docker container executor
+│   └── docker/                        # Docker infrastructure
+│       ├── Dockerfile                 # Container image with Python SDKs
+│       └── build.sh                   # Build automation script
 │
 ├── parallel-orchestrator/             # Parallel Task Orchestrator
 │   ├── orchestrator.py                # Main orchestrator with backend support
@@ -328,23 +336,25 @@ factory-agentic-dev/
 │   ├── config.py                      # Configuration and CLI parsing
 │   ├── slurm_executor.py              # SLURM compute node executor
 │   ├── batch_executor.py              # AWS Batch container executor
+│   ├── docker_executor.py             # Docker container executor
 │   ├── backends/                      # Execution backends
 │   │   ├── base.py                    # Abstract ExecutionBackend class
 │   │   ├── threading_backend.py       # Local threading backend
+│   │   ├── docker_backend.py          # Docker container backend
 │   │   ├── slurm_backend.py           # SLURM HPC backend
 │   │   ├── aws_parallel_cluster_backend.py  # AWS ParallelCluster backend
 │   │   └── aws_batch_backend.py       # AWS Batch backend
 │   └── demo.py                        # Demo script with scenarios
 │
 ├── docs/                              # Centralized Documentation
-│   ├── website-orchestrator-quickstart.md
-│   ├── website-orchestrator-structure.md
-│   ├── website-orchestrator-test-results.md
+│   ├── website-orchestrator-readme.md
+│   ├── website-orchestrator-architecture.md
 │   ├── parallel-orchestrator-quickstart.md
+│   ├── parallel-orchestrator-readme.md
 │   └── parallel-orchestrator-architecture.md
 │
 ├── outputs/                           # Centralized Outputs (gitignored)
-│   ├── website-orchestrator/          # Website generator outputs
+│   ├── website-orchestrator/          # Website orchestrator outputs
 │   └── parallel-orchestrator/         # Parallel task orchestrator outputs
 │
 ├── api/                               # Claude Code API server (optional)
