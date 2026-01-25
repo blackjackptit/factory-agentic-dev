@@ -32,11 +32,13 @@ Centralized documentation for Factory Agentic Dev - covering both the Website Or
 - **[Architecture](parallel-orchestrator-architecture.md)** - Complete architecture with 9 Mermaid diagrams
 
 ### Key Capabilities
-- AI-Powered Planning - Claude Code determines optimal task breakdown
-- Task Queue Model - M workers process N tasks dynamically (N can be > M)
-- Automatic Load Balancing - Fast workers handle more tasks
-- Dependency Management - Tasks wait for prerequisites automatically
-- Flexible Budgeting - You set max executors, AI decides optimal count
+- **AI-Powered Planning** - Claude Code determines optimal task breakdown
+- **Multi-Backend Support** - Threading, Docker, SLURM HPC, AWS ParallelCluster
+- **AWS Bedrock Integration** - Use AWS credentials instead of Anthropic API keys
+- **Docker Isolation** - Containerized parallel execution with consistent environment
+- **Task Queue Model** - M workers process N tasks dynamically (N can be > M)
+- **Automatic Load Balancing** - Fast workers handle more tasks
+- **Dependency Management** - Tasks wait for prerequisites automatically
 
 ### Execution Model
 ```
@@ -92,8 +94,10 @@ docs/
 |---------|---------------------|---------------------------|
 | **Purpose** | Generate web apps | Execute parallel tasks |
 | **AI Usage** | Fixed workflow | Dynamic task planning |
+| **Backends** | Threading | Threading, Docker, SLURM, AWS |
 | **Parallelization** | 3 sequential subagents | M workers, N tasks (N > M) |
 | **Output** | Complete web app | Task results & metrics |
+| **Bedrock Support** | No | Yes (Docker backend) |
 | **Documentation** | [Quick Start](website-orchestrator-quickstart.md) | [Overview](parallel-orchestrator-readme.md) |
 
 ---
@@ -126,4 +130,4 @@ docs/
 
 **Last Updated:** January 2026
 
-**Version:** 2.0 - Unified Documentation Structure
+**Version:** 5.0 - Docker Backend with Bedrock Integration

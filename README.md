@@ -123,113 +123,188 @@ python orchestrator/build_website.py "build a todo list app"
 
 ---
 
-# ⚡ Parallel Task Orchestrator
+# Parallel Task Orchestrator
 
-> AI-powered task queue system with dynamic executor allocation
+> AI-powered task queue system with dynamic executor allocation, SLURM HPC, AWS ParallelCluster, and AWS Batch support
 
 ## Features
 
-### 💰 Flexible Executor Budget
+### Multi-Backend Execution
+- **Threading** (default): Local multi-threaded execution
+- **SLURM**: HPC cluster execution with job scheduling
+- **AWS ParallelCluster**: Cloud HPC with S3 state synchronization
+- **AWS Batch**: Serverless batch job execution on AWS
+
+### Flexible Executor Budget
 - You specify the budget (max executors), AI decides optimal task count
 - Example: Budget of 3 executors can handle 6 tasks dynamically
 
-### 🤖 AI-Powered Planning
+### AI-Powered Planning
 - Uses Claude Code for intelligent complexity analysis
 - Determines optimal number of tasks to create (N)
 - Creates detailed task descriptions with dependencies and effort estimates
 - Domain-agnostic: works for ML, games, mobile, data analytics, web, etc.
 
-### ⚡ Task Queue Execution
-- M executor workers process N tasks dynamically (N can be > M)
-- Automatic load balancing: fast workers handle more tasks
-- Dependency-aware: tasks wait for prerequisites automatically
-- Thread-safe operations with proper locks
+### GPU Support (SLURM/AWS)
+- Request GPUs with `--slurm-gpus=N`
+- Automatic `--gres=gpu:N` generation for SLURM jobs
+- GPU partition selection with `--slurm-gpu-partition`
 
-### 🔄 Dynamic Task Allocation
-- Executors continuously pull tasks from queue
-- Check dependencies before executing
-- Graceful shutdown when queue is empty
-
-## How It Works
-
-```
-1. User sets budget: --max-executors 3
-2. AI analyzes and creates 6 tasks
-3. Orchestrator spawns 3 executor workers
-4. Workers continuously pull tasks from queue
-5. Check dependencies before executing
-6. Complete task and pick next available
-7. Shut down when all tasks done
-```
+### Auto-Retry for Failed Jobs
+- Configurable retry attempts (default: 3)
+- Exponential backoff between retries
+- Per-task retry tracking
 
 ## Quick Start
 
+### Threading Mode (Default)
 ```bash
 cd parallel-orchestrator
 
 # Simple task with default budget (max 5 executors)
 python3 orchestrator.py "Create a calculator function"
 
-# Moderate task with custom budget
-python3 orchestrator.py "Build todo list with backend and frontend" --max-executors 3
-
-# Complex task with large budget
+# Custom budget and output
 python3 orchestrator.py "Build microservices platform" --max-executors 10
-
-# Custom output directory (default: ../outputs/parallel-orchestrator/)
-python3 orchestrator.py "Your requirements" --output-dir ../outputs/parallel-orchestrator/my-project --max-executors 8
-
-# View all options
-python3 orchestrator.py --help
 ```
 
-## Example Execution
-
-**Input:**
+### SLURM Mode (HPC Cluster)
 ```bash
-python3 orchestrator.py "Build a todo list app with backend API and frontend UI" --max-executors 3
+# Basic SLURM execution
+python3 orchestrator.py "Build ML pipeline" \
+    --slurm \
+    --slurm-partition=compute \
+    --max-executors 10
+
+# SLURM with GPU
+python3 orchestrator.py "Train ML models" \
+    --slurm \
+    --slurm-partition=gpu \
+    --slurm-gpus=1 \
+    --slurm-mem=32G \
+    --max-executors 8
 ```
 
-**Result:**
-- ✅ AI created 6 tasks for 3 executors (2:1 ratio)
-- ✅ 3 executor workers spawned
-- ✅ Dynamic task allocation worked perfectly
-- ✅ Executor-1 completed 2 tasks (task_1, task_2)
-- ✅ Executor-2 completed 4 tasks (task_3, task_4, task_5, task_6)
-- ✅ Executor-3 correctly shut down (dependencies covered)
-- ✅ 100% success rate, 18 files created, 1400 LOC
+### AWS ParallelCluster Mode
+```bash
+# AWS execution
+python3 orchestrator.py "Build platform" \
+    --aws \
+    --aws-cluster-name=my-cluster \
+    --aws-s3-bucket=my-bucket \
+    --max-executors 50
 
-## Task Queue Benefits
+# AWS with GPU
+python3 orchestrator.py "Train deep learning" \
+    --aws \
+    --aws-cluster-name=gpu-cluster \
+    --aws-s3-bucket=ml-bucket \
+    --slurm-gpus=4 \
+    --max-executors 20
+```
 
-✅ **Better Parallelization**: Can create more tasks than executors (e.g., 10 tasks for 5 executors)
-✅ **Automatic Load Balancing**: Fast executors naturally handle more tasks
-✅ **Dependency Management**: Tasks automatically wait for prerequisites
-✅ **No Idle Workers**: Executors continuously work until queue is empty
-✅ **Resource Efficiency**: Only spawn workers needed, never more than budget
+### AWS Batch Mode (Serverless)
+```bash
+# AWS Batch execution
+python3 orchestrator.py "Build a website" \
+    --batch \
+    --batch-job-queue=my-queue \
+    --batch-job-definition=parallel-orchestrator-job \
+    --batch-s3-bucket=my-bucket \
+    --max-executors 10
+
+# AWS Batch with custom resources
+python3 orchestrator.py "Train ML model" \
+    --batch \
+    --batch-job-queue=gpu-queue \
+    --batch-job-definition=ml-job-def \
+    --batch-s3-bucket=ml-bucket \
+    --batch-vcpus=4 \
+    --batch-memory=16384 \
+    --max-executors 8
+```
+
+## Architecture
+
+```
+                      ParallelOrchestrator
+                              |
+                      ExecutionBackend (ABC)
+                /         |           |          \
+   ThreadingBackend  SlurmBackend  AWSParallelCluster  AWSBatchBackend
+     (in-memory)    (file-based)     (S3-synced)      (S3-synced)
+```
+
+## Command-Line Options
+
+```bash
+python3 orchestrator.py <requirements> [OPTIONS]
+
+General:
+  -o, --output-dir       Output directory
+  -m, --max-executors    Max executors (default: 5)
+  --real                 Use real Claude API
+
+Backend Selection:
+  --slurm                Enable SLURM backend
+  --aws                  Enable AWS ParallelCluster backend
+  --batch                Enable AWS Batch backend
+
+SLURM Options:
+  --slurm-partition      Partition name
+  --slurm-time           Time limit (default: 01:00:00)
+  --slurm-mem            Memory (default: 4G)
+  --slurm-cpus           CPUs per task (default: 1)
+  --slurm-gpus           GPUs per task (default: 0)
+  --slurm-gpu-partition  GPU partition
+
+AWS ParallelCluster Options:
+  --aws-cluster-name     Cluster name (required)
+  --aws-region           Region (default: us-east-1)
+  --aws-s3-bucket        S3 bucket (required)
+
+AWS Batch Options:
+  --batch-job-queue      Job queue (required)
+  --batch-job-definition Job definition (required)
+  --batch-region         Region (default: us-east-1)
+  --batch-s3-bucket      S3 bucket (required)
+  --batch-vcpus          vCPUs per job (default: 1)
+  --batch-memory         Memory in MB (default: 2048)
+  --batch-timeout        Timeout in seconds (default: 3600)
+
+Retry:
+  --max-retries          Max retries (default: 3)
+```
 
 ## Python API
 
 ```python
 from orchestrator import ParallelOrchestrator
+from config import OrchestratorConfig, SlurmConfig
 
-# Create orchestrator with budget
+# Threading mode
 orchestrator = ParallelOrchestrator(
-    requirements="Build enterprise system with microservices",
+    requirements="Build enterprise system",
     output_dir="enterprise-project"
 )
-orchestrator.max_executors = 10  # Budget of 10 executors
-
-# Run orchestration (planner decides optimal task count)
+orchestrator.max_executors = 10
 summary = orchestrator.run()
 
-# Check results
-print(f"Tasks created: {summary['total_tasks']}")
-print(f"Executors used: {min(summary['total_tasks'], 10)}")
-print(f"Success rate: {summary['success_rate']}")
-print(f"Files created: {summary['total_files_created']}")
+# SLURM mode (programmatic)
+config = OrchestratorConfig(
+    requirements="Train ML model",
+    backend_type="slurm",
+    slurm=SlurmConfig(enabled=True, partition="gpu", gpus_per_task=1)
+)
+orchestrator = ParallelOrchestrator(config.requirements, config=config)
+summary = orchestrator.run()
 ```
 
-📖 **[Quick Start Guide](docs/parallel-orchestrator-quickstart.md)** | 🏗️ **[Architecture](docs/parallel-orchestrator-architecture.md)**
+## Documentation
+
+- **[Quick Start Guide](docs/parallel-orchestrator-quickstart.md)** - Get started quickly
+- **[Complete Overview](docs/parallel-orchestrator-readme.md)** - Full documentation
+- **[Architecture](docs/parallel-orchestrator-architecture.md)** - System diagrams
 
 ---
 
@@ -247,9 +322,18 @@ factory-agentic-dev/
 │       └── testing_agent.py           # Test suite generation
 │
 ├── parallel-orchestrator/             # Parallel Task Orchestrator
-│   ├── orchestrator.py                # Main orchestrator with task queue
+│   ├── orchestrator.py                # Main orchestrator with backend support
 │   ├── planner_agent.py               # AI-powered planning agent
 │   ├── executor_agent.py              # Individual executor implementation
+│   ├── config.py                      # Configuration and CLI parsing
+│   ├── slurm_executor.py              # SLURM compute node executor
+│   ├── batch_executor.py              # AWS Batch container executor
+│   ├── backends/                      # Execution backends
+│   │   ├── base.py                    # Abstract ExecutionBackend class
+│   │   ├── threading_backend.py       # Local threading backend
+│   │   ├── slurm_backend.py           # SLURM HPC backend
+│   │   ├── aws_parallel_cluster_backend.py  # AWS ParallelCluster backend
+│   │   └── aws_batch_backend.py       # AWS Batch backend
 │   └── demo.py                        # Demo script with scenarios
 │
 ├── docs/                              # Centralized Documentation
@@ -417,12 +501,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [x] AI-powered planning
 - [x] Dynamic dependency management
 - [x] Automatic load balancing
-- [ ] Cloud deployment (distributed workers)
+- [x] SLURM HPC backend
+- [x] AWS ParallelCluster backend
+- [x] AWS Batch backend (serverless)
+- [x] GPU support (--slurm-gpus)
+- [x] Auto-retry logic with exponential backoff
+- [x] File-based state management
+- [x] S3 state synchronization (AWS)
+- [ ] Kubernetes backend
 - [ ] Real-time dashboard (Web UI)
-- [ ] Quality scoring
-- [ ] Auto-retry logic
-- [ ] Resource limits per worker
 - [ ] Distributed task queues (Redis, RabbitMQ)
+- [ ] Checkpoint/resume for long-running jobs
 
 ---
 
@@ -435,9 +524,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Code Generated:** 100,000+ lines per full-stack app
 
 ## Parallel Task Orchestrator
-- **Language:** Python (standard library only)
+- **Language:** Python 3.8+
 - **AI Integration:** Claude Code API
+- **Execution Backends:** Threading, SLURM, AWS ParallelCluster, AWS Batch
 - **Execution Model:** Task queue with M workers for N tasks
+- **HPC Support:** SLURM job scheduling, GPU allocation, S3 state sync
+- **Serverless:** AWS Batch with container-based execution
 - **Domains Supported:** Web, ML, Games, Mobile, Data, Media, etc.
 
 ---
@@ -452,4 +544,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Last Updated:** January 2026
-**Version:** 2.0 - Unified Documentation Structure
+**Version:** 4.0 - Added AWS Batch Backend Support

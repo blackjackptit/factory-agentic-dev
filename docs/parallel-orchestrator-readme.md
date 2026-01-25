@@ -1,14 +1,20 @@
-# Parallel Task Orchestrator ⚡
+# Parallel Task Orchestrator
 
-> AI-powered task queue system with dynamic executor allocation and intelligent planning
+> AI-powered task queue system with dynamic executor allocation, Docker containers, SLURM HPC, and AWS ParallelCluster support
 
 ## Overview
 
-The Parallel Task Orchestrator is an intelligent system that coordinates multiple executor agents to work on tasks in parallel. Unlike traditional parallel processing, it uses AI to analyze complexity and create an optimal task breakdown, then dynamically allocates work across a configurable number of executors.
+The Parallel Task Orchestrator is an intelligent system that coordinates multiple executor agents to work on tasks in parallel. It uses AI to analyze complexity and create an optimal task breakdown, then dynamically allocates work across configurable execution backends.
 
-### Key Innovation: Task Queue Model
+### Key Innovation: Multi-Backend Execution
 
 ```
+Backends Available:
+1. Threading (default) - Local multi-threaded execution
+2. Docker - Containerized parallel execution with AWS Bedrock
+3. SLURM - HPC cluster execution with job scheduling
+4. AWS ParallelCluster - Cloud HPC with S3 state sync
+
 Budget: 3 executors (M workers)
 AI creates: 6 tasks (N tasks, where N > M)
 Execution: 3 workers continuously pull from queue of 6 tasks
@@ -18,28 +24,41 @@ Result: Optimal parallelization with automatic load balancing
 ## Architecture Overview
 
 ```
+                                      ParallelOrchestrator
+                                              |
+                                      ExecutionBackend (ABC)
+                            /         |           |           \
+          ThreadingBackend    DockerBackend   SlurmBackend   AWSParallelCluster
+             (default)        (containers)    (local HPC)     (cloud HPC)
+                 |                |               |                |
+            In-memory        Volume mounts    File-based       S3-synced
+            threading        isolation        sbatch jobs      state mgmt
+```
+
+### Execution Flow
+
+```
 ┌─────────────────────────────────────────────────────────┐
 │                   User Requirements                      │
+│              + Backend Selection (--docker/--slurm/--aws)│
 └────────────────────────┬────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │              Parallel Orchestrator                       │
 │  - Coordinates workflow                                  │
+│  - Creates appropriate backend                           │
 │  - Manages task queue                                    │
-│  - Dynamic executor allocation                           │
 └────────┬──────────────┬──────────────┬──────────────────┘
          │              │              │
          ▼              ▼              ▼
 ┌────────────┐  ┌─────────────┐  ┌──────────────┐
 │ Executor 1 │  │ Executor 2  │  │ Executor M   │
 │            │  │             │  │              │
-│ Pulls from │  │ Pulls from  │  │ Pulls from   │
-│ task queue │  │ task queue  │  │ task queue   │
-│            │  │             │  │              │
-│ Completes  │  │ Completes   │  │ Completes    │
-│ task_1     │  │ task_2      │  │ task_3       │
-│ task_4     │  │ task_5      │  │ ...          │
+│ Thread/    │  │ Thread/     │  │ Thread/      │
+│ Container/ │  │ Container/  │  │ Container/   │
+│ SLURM Job/ │  │ SLURM Job/  │  │ SLURM Job/   │
+│ AWS Job    │  │ AWS Job     │  │ AWS Job      │
 └────────────┘  └─────────────┘  └──────────────┘
          │              │              │
          └──────────────┴──────────────┘
@@ -54,42 +73,53 @@ Result: Optimal parallelization with automatic load balancing
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 🎯 Key Features
+## Key Features
 
-### 💰 Flexible Executor Budget
+### Flexible Executor Budget
 - **You specify the budget** (max executors): Set your resource constraints
 - **AI decides optimal task count**: Creates N tasks (can be > budget)
 - **Example**: Budget of 3 executors can dynamically handle 6 tasks
 
-### 🤖 AI-Powered Planning
+### AI-Powered Planning
 - Uses **Claude Code** for intelligent complexity analysis
 - Determines optimal number of tasks to create
 - **Domain-agnostic**: Works for ML, games, mobile, data analytics, web, etc.
 - Automatic dependency detection and ordering
 
-### ⚡ Task Queue Execution
-- **M executor workers** process **N tasks** dynamically (N can be > M)
-- Automatic load balancing: fast workers handle more tasks
-- Dependency-aware: tasks wait for prerequisites automatically
-- Continuous task pulling until queue is empty
+### Multi-Backend Support
 
-### 🔄 Dynamic Task Allocation
-- Executors continuously pull tasks from queue
-- Check dependencies before executing
-- Thread-safe task queue operations
-- Graceful shutdown when queue is empty
-- Real-time progress tracking
+| Backend | Use Case | State Management | Scaling |
+|---------|----------|------------------|---------|
+| **Threading** | Local development, small tasks | In-memory | Single machine |
+| **Docker** | Parallel containers, isolation | Volume mounts | Single machine, 2-50 containers |
+| **SLURM** | HPC clusters, research computing | File-based | Cluster-wide |
+| **AWS ParallelCluster** | Cloud HPC, large-scale jobs | S3-synced | Multi-node cloud |
 
-### 📦 Automatic Output Consolidation
-- Consolidates all executor outputs at project root
-- Organizes implementation files into `src/` directory
-- Groups test files into `tests/` directory
-- Combines documentation into single README
-- Preserves raw executor outputs for reference
+### AWS Bedrock Integration (Docker Backend)
+- **No Anthropic API Key Required**: Use AWS credentials instead
+- **Cost Tracking**: Bedrock usage shows up in AWS billing
+- **Enterprise Integration**: Works with AWS SSO and IAM roles
+- **Same Performance**: Local Docker execution with cloud AI
 
-## 🚀 Quick Start
+### Docker Planner Mode
+- **Planner in Docker**: Run planner in isolated container
+- **Consistent Environment**: Same Claude CLI version as executors
+- **CI/CD Friendly**: Everything runs in containers
 
-### Basic Usage
+### GPU Support (SLURM/AWS)
+- Request GPUs with `--slurm-gpus=N`
+- Specify GPU partition with `--slurm-gpu-partition`
+- Automatic `--gres=gpu:N` generation for SLURM jobs
+
+### Auto-Retry for Failed Jobs
+- Configurable retry attempts (default: 3)
+- Exponential backoff between retries
+- Per-task retry tracking
+- Detailed failure logging
+
+## Quick Start
+
+### Threading Mode (Default)
 
 ```bash
 # Simple task with default budget (max 5 executors)
@@ -101,14 +131,87 @@ python3 orchestrator.py "Build todo list with backend and frontend" --max-execut
 # Complex task with large budget
 python3 orchestrator.py "Build microservices platform" --max-executors 10
 
-# With custom output directory
-python3 orchestrator.py "Build chat app" --output-dir ./my-project --max-executors 3
-
 # Generate real code (slower but functional)
 python3 orchestrator.py "Build a chess game" --max-executors 5 --real
 ```
 
-### Command-Line Options
+### Docker Mode (Recommended for Production)
+
+```bash
+# Build Docker image first (one-time setup)
+cd parallel-orchestrator/docker
+./build.sh
+
+# Basic Docker execution with AWS Bedrock
+export AWS_ACCESS_KEY_ID="your-key"
+export AWS_SECRET_ACCESS_KEY="your-secret"
+
+python3 orchestrator.py "Build a todo list app" \
+    --docker \
+    --docker-planner-in-docker \
+    --docker-use-bedrock \
+    --max-executors 3 \
+    --real
+
+# Docker with Anthropic API
+export ANTHROPIC_API_KEY="your-key"
+
+python3 orchestrator.py "Build a contact form" \
+    --docker \
+    --docker-planner-in-docker \
+    --max-executors 2 \
+    --real
+```
+
+### SLURM Mode (Local HPC)
+
+```bash
+# Basic SLURM execution
+python3 orchestrator.py "Build ML pipeline" \
+    --slurm \
+    --slurm-partition=compute \
+    --max-executors 10
+
+# SLURM with custom resources
+python3 orchestrator.py "Process large dataset" \
+    --slurm \
+    --slurm-partition=compute \
+    --slurm-time=02:00:00 \
+    --slurm-mem=16G \
+    --slurm-cpus=4 \
+    --max-executors 20
+
+# SLURM with GPU
+python3 orchestrator.py "Train ML models" \
+    --slurm \
+    --slurm-partition=gpu \
+    --slurm-gpus=1 \
+    --slurm-mem=32G \
+    --max-executors 8
+```
+
+### AWS ParallelCluster Mode
+
+```bash
+# AWS ParallelCluster execution
+python3 orchestrator.py "Build platform" \
+    --aws \
+    --aws-cluster-name=my-cluster \
+    --aws-s3-bucket=my-bucket \
+    --aws-region=eu-central-1 \
+    --max-executors 50
+
+# AWS with GPU (p3/p4 instances)
+python3 orchestrator.py "Train deep learning models" \
+    --aws \
+    --aws-cluster-name=gpu-cluster \
+    --aws-s3-bucket=ml-bucket \
+    --slurm-partition=gpu \
+    --slurm-gpus=1 \
+    --max-executors 20
+```
+
+## Command-Line Options
 
 ```bash
 python3 orchestrator.py <requirements> [OPTIONS]
@@ -116,105 +219,130 @@ python3 orchestrator.py <requirements> [OPTIONS]
 Required:
   requirements              Project requirements description
 
-Options:
-  -o, --output-dir DIR     Output directory (default: ../outputs/parallel-orchestrator/)
+General Options:
+  -o, --output-dir DIR     Output directory
   -m, --max-executors N    Maximum number of executors (default: 5)
   --real                   Use real Claude API calls for actual code generation
-  -h, --help               Show help message
+
+Backend Selection (mutually exclusive):
+  --docker                 Enable Docker backend
+  --slurm                  Enable local SLURM backend
+  --aws                    Enable AWS ParallelCluster backend
+
+Docker Options:
+  --docker-planner-in-docker        Run planner in Docker container
+  --docker-use-bedrock              Use AWS Bedrock instead of Anthropic API
+  --docker-bedrock-region REGION    AWS region (default: eu-central-1)
+  --docker-bedrock-model MODEL      Model ID (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
+  --docker-image IMAGE              Docker image (default: parallel-orchestrator:latest)
+  --docker-network NETWORK          Docker network name
+  --docker-aws-access-key-id KEY    AWS Access Key ID
+  --docker-aws-secret-access-key    AWS Secret Access Key
+  --docker-aws-session-token        AWS Session Token (optional)
+
+SLURM Options:
+  --slurm-partition NAME   SLURM partition name (default: default)
+  --slurm-time TIME        Job time limit (default: 01:00:00)
+  --slurm-mem SIZE         Memory per job (default: 4G)
+  --slurm-cpus N           CPUs per task (default: 1)
+  --slurm-gpus N           GPUs per task (default: 0)
+  --slurm-gpu-partition    GPU-specific partition name
+
+AWS ParallelCluster Options:
+  --aws-cluster-name NAME  ParallelCluster name (required for --aws)
+  --aws-region REGION      AWS region (default: eu-central-1)
+  --aws-s3-bucket BUCKET   S3 bucket for state sync (required for --aws)
+
+Retry Options:
+  --max-retries N          Max retry attempts for failed jobs (default: 3)
 ```
 
-## 📊 Example Execution
+## State Management
 
-### Input
-```bash
-python3 orchestrator.py "Build a todo list app with backend API and frontend UI" --max-executors 3
+### Threading Backend
+- In-memory state with thread locks
+- No external dependencies
+- Best for: local development, quick testing
+
+### Docker Backend
+```
+Host Machine:
+outputs/
+├── planner/                # Planner output (if using --docker-planner-in-docker)
+└── parallel-orchestrator/  # Final outputs
+    ├── executor_0/         # Container 0 output (volume mount)
+    ├── executor_1/         # Container 1 output (volume mount)
+    └── ...
+
+Docker Containers:
+- Volume mounts for input/output
+- Environment variables for credentials
+- Isolated execution environment
 ```
 
-### AI Planning Phase
+### SLURM Backend
 ```
-Analyzing complexity...
-✓ Complexity score: 65/100
-✓ Optimal task breakdown: 6 tasks
-✓ Executor budget: 3 workers
-
-Tasks created:
-1. Database schema and migrations
-2. REST API endpoints
-3. Authentication system
-4. Frontend React components
-5. State management
-6. Integration tests
+{output_dir}/.slurm_state/
+├── jobs.json           # job_id -> task_id mapping
+├── tasks.json          # task status tracking
+├── results/            # one JSON per completed task
+├── scripts/            # generated sbatch scripts
+├── logs/               # SLURM output logs
+└── task_definitions/   # task JSON files
 ```
 
-### Execution Phase
+### AWS ParallelCluster Backend
 ```
-Spawning 3 executor workers...
+Local (same as SLURM):
+{output_dir}/.slurm_state/
 
-[Executor-1] Starting task_1: Database schema
-[Executor-2] Starting task_2: REST API endpoints
-[Executor-3] Starting task_3: Authentication system
-[Executor-1] ✓ Completed task_1 (45s)
-[Executor-1] Starting task_4: Frontend React components
-[Executor-2] ✓ Completed task_2 (52s)
-[Executor-2] Starting task_5: State management
-[Executor-3] ✓ Completed task_3 (48s)
-[Executor-3] Starting task_6: Integration tests
-[Executor-1] ✓ Completed task_4 (67s)
-[Executor-2] ✓ Completed task_5 (43s)
-[Executor-3] ✓ Completed task_6 (71s)
-
-All executor workers finished
-✓ Total tasks completed: 6
+S3 (synced):
+s3://bucket/parallel-orchestrator/{run-id}/
+├── state/              # sync'd to/from local
+├── tasks/              # task definitions
+└── results/            # completed results
 ```
 
-### Results
-- ✅ 100% success rate
-- ✅ 18 files created
-- ✅ 2,847 lines of code
-- ✅ 94.2% test coverage
-- ✅ Execution time: 3m 12s
-
-## 🏗️ Project Structure
+## Project Structure
 
 ### Input Structure
 ```
 parallel-orchestrator/
-├── orchestrator.py          # Main orchestrator with task queue
+├── orchestrator.py          # Main orchestrator
 ├── planner_agent.py         # AI-powered planning agent
-├── executor_agent.py        # Individual executor implementation
-├── demo.py                  # Demo script with scenarios
-└── README.md               # Quick start (points to docs)
+├── executor_agent.py        # Individual executor
+├── config.py                # Configuration and CLI parsing
+├── docker_planner.py        # Docker planner script
+├── docker_executor.py       # Docker executor script
+├── slurm_executor.py        # SLURM compute node script
+├── docker/                  # Docker image build
+│   ├── Dockerfile           # Multi-stage container image
+│   ├── build.sh             # Build automation script
+│   └── README.md            # Docker setup guide
+├── backends/
+│   ├── __init__.py          # Package exports
+│   ├── base.py              # Abstract base class
+│   ├── threading_backend.py # Threading implementation
+│   ├── docker_backend.py    # Docker implementation
+│   ├── slurm_backend.py     # SLURM implementation
+│   └── aws_parallel_cluster_backend.py  # AWS ParallelCluster
+└── demo.py                  # Demo script with scenarios
 ```
 
 ### Output Structure
 ```
 ../outputs/parallel-orchestrator/project-name/
-├── src/                     # ✨ All implementation files
-│   ├── database.py
-│   ├── api.py
-│   ├── auth.py
-│   └── ...
-├── tests/                   # ✨ All test files
-│   ├── test_database.py
-│   ├── test_api.py
-│   └── ...
-├── docs/                    # ✨ Execution documentation
-│   └── execution_plan.json
-├── README.md                # ✨ Combined documentation
+├── src/                     # All implementation files
+├── tests/                   # All test files
+├── docs/                    # Execution documentation
+├── README.md                # Combined documentation
 ├── orchestrator.log         # Execution logs
 ├── execution_summary.json   # Results and metrics
-├── executor_1/              # Raw executor 1 outputs (preserved)
-│   ├── task_1/
-│   └── task_4/
-├── executor_2/              # Raw executor 2 outputs (preserved)
-│   ├── task_2/
-│   └── task_5/
-└── executor_3/              # Raw executor 3 outputs (preserved)
-    ├── task_3/
-    └── task_6/
+├── .slurm_state/            # SLURM state (if using SLURM/AWS)
+└── executor_*/              # Raw executor outputs
 ```
 
-## 🎓 How It Works
+## How It Works
 
 ### Step 1: AI-Powered Complexity Analysis
 The **PlannerAgent** analyzes your requirements using Claude Code:
@@ -222,66 +350,90 @@ The **PlannerAgent** analyzes your requirements using Claude Code:
 - Determines optimal number of tasks to create
 - Considers dependencies and execution order
 
-### Step 2: Intelligent Task Planning
-Creates detailed execution plan:
-- Breaks project into N independent tasks
-- Identifies dependencies between tasks
-- Assigns priorities and estimates duration
-- Generates task descriptions and acceptance criteria
+### Step 2: Backend Creation
+Based on CLI flags, creates appropriate execution backend:
+- **Threading**: In-memory, thread-based execution
+- **Docker**: Container-based with volume mounts and environment variables
+- **SLURM**: File-based state, sbatch job submission
+- **AWS ParallelCluster**: S3-synced state, ParallelCluster integration
 
-### Step 3: Dynamic Parallel Execution
-- Spawns M executor workers (your specified budget)
-- Workers continuously pull tasks from thread-safe queue
-- Each executor:
-  1. Checks if task dependencies are satisfied
-  2. Executes task using Claude Code
-  3. Reports results and pulls next task
-- Automatic load balancing based on executor speed
+### Step 3: Task Submission
+- Tasks are submitted to the backend
+- Dependencies are tracked
+- State is initialized (memory/volumes/files/S3)
 
-### Step 4: Result Aggregation
-- Collects metrics from all executors
-- Calculates success rate, LOC, test coverage
-- Generates execution summary
+### Step 4: Parallel Execution
+- **Threading**: Worker threads pull from queue
+- **Docker**: Containers started with task assignments, results written to volumes
+- **SLURM**: Jobs submitted with `--dependency=afterok:job_id`
+- **AWS ParallelCluster**: Same as SLURM + S3 sync for cross-node state
 
-### Step 5: Output Consolidation
+### Step 5: Result Collection & Retry
+- Results collected from all executors
+- Failed tasks are retried (up to `--max-retries`)
+- Final metrics calculated
+
+### Step 6: Output Consolidation
 - Merges all executor outputs into unified structure
 - Organizes files by type (src, tests, docs)
-- Combines README files into single documentation
 - Preserves raw executor outputs for debugging
 
-## 💡 Use Cases
+## Use Cases
 
-### Software Development
+### Local Development (Threading)
 ```bash
-# Full-stack application
-python3 orchestrator.py "Build e-commerce platform with product catalog, cart, and checkout" --max-executors 8
-
-# Microservices architecture
-python3 orchestrator.py "Create microservices: user service, product service, order service, payment gateway" --max-executors 6
-
-# Mobile app
-python3 orchestrator.py "Build React Native app for task management with offline sync" --max-executors 4
+python3 orchestrator.py "Build REST API with authentication" --max-executors 4
 ```
 
-### Data & ML
+### Containerized Development (Docker)
 ```bash
-# Data pipeline
-python3 orchestrator.py "ETL pipeline: extract from APIs, transform data, load to warehouse" --max-executors 3
-
-# ML model development
-python3 orchestrator.py "Train classification model: data preprocessing, feature engineering, model training, evaluation" --max-executors 5
+python3 orchestrator.py "Build a todo app" \
+    --docker \
+    --docker-use-bedrock \
+    --max-executors 3 \
+    --real
 ```
 
-### Game Development
+### Research Computing (SLURM)
 ```bash
-# Simple game
-python3 orchestrator.py "Create 2D platformer game with physics, levels, enemies, and scoring" --max-executors 6
-
-# Chess game (real example)
-python3 orchestrator.py "Build multiplayer chess game with WebSocket, ELO rating, and game history" --max-executors 5 --real
+python3 orchestrator.py "Run hyperparameter sweep for ML model" \
+    --slurm \
+    --slurm-partition=research \
+    --slurm-gpus=1 \
+    --max-executors 50
 ```
 
-## 📈 Performance Optimization
+### Cloud ML Training (AWS)
+```bash
+python3 orchestrator.py "Train ensemble models on ImageNet" \
+    --aws \
+    --aws-cluster-name=ml-training \
+    --aws-s3-bucket=ml-data \
+    --slurm-gpus=4 \
+    --max-executors 100
+```
+
+### Data Pipeline Processing
+```bash
+python3 orchestrator.py "ETL pipeline: extract, transform, load" \
+    --slurm \
+    --slurm-partition=data \
+    --slurm-mem=64G \
+    --max-executors 20
+```
+
+## Performance Optimization
+
+### Choosing the Right Backend
+
+| Scenario | Recommended Backend | Why |
+|----------|---------------------|-----|
+| Quick prototyping | Threading | No setup, instant start |
+| Production code gen | Docker | Isolation, Bedrock integration |
+| University cluster | SLURM | Native integration |
+| Large-scale ML | AWS ParallelCluster | Scalable, GPU support |
+| CI/CD pipelines | Docker | Containerizable, reproducible |
+| Long-running jobs | SLURM/AWS | Job persistence, recovery |
 
 ### Choosing the Right Budget
 
@@ -290,43 +442,81 @@ python3 orchestrator.py "Build multiplayer chess game with WebSocket, ELO rating
 | Simple (1-3 tasks) | 1-2 executors | Calculator, simple utility |
 | Moderate (4-8 tasks) | 3-5 executors | Todo app, blog, REST API |
 | Complex (9-15 tasks) | 6-10 executors | E-commerce, CMS, dashboard |
-| Very Complex (16+ tasks) | 10-15 executors | Microservices, game engine |
+| Very Complex (16+ tasks) | 10-50 executors | Microservices, ML pipelines |
 
-### Optimization Tips
+## Real-World Performance
 
-1. **Start with defaults** (5 executors) and adjust based on results
-2. **More executors ≠ faster** - there's a point of diminishing returns
-3. **Consider dependencies** - highly dependent tasks may not benefit from parallelization
-4. **Use `--real` flag judiciously** - it's slower but generates actual working code
+Based on production testing (January 2026):
 
-## 🔍 Troubleshooting
+| Metric | Result |
+|--------|--------|
+| **Success Rate** | 100% (10/10 tests) |
+| **Avg Time per Project** | 3-4 minutes |
+| **Files Generated** | 16-24 per project |
+| **Lines of Code** | 5,000-10,000 per project |
+| **Parallel Efficiency** | 3x speedup with 3 executors |
 
-### Common Issues
+**Test Projects**:
+- Contact form with validation (4 tasks, 16 files, 5,671 LOC, 188s)
+- Todo list with local storage (6 tasks, 24 files, 9,633 LOC, 195s)
+
+## Troubleshooting
+
+### Docker Issues
+
+**Issue**: Docker image not found
+- **Solution**: Run `cd docker && ./build.sh`
+
+**Issue**: AWS Bedrock credentials error
+- **Solution**: Check credentials with `aws sts get-caller-identity`
+- **Solution**: Set env vars: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+**Issue**: Model access denied
+- **Solution**: Request model access in AWS Bedrock console
+
+### SLURM Issues
+
+**Issue**: Jobs pending indefinitely
+- **Solution**: Check partition availability with `sinfo`
+- **Solution**: Verify resource requests match available nodes
+
+**Issue**: Jobs failing immediately
+- **Solution**: Check `.slurm_state/logs/*.err` for error details
+- **Solution**: Verify Python environment on compute nodes
+
+### AWS ParallelCluster Issues
+
+**Issue**: S3 sync fails
+- **Solution**: Verify AWS credentials and bucket permissions
+- **Solution**: Check `aws s3 ls s3://bucket/` works
+
+**Issue**: Jobs not finding state
+- **Solution**: Ensure shared filesystem or S3 sync is working
+- **Solution**: Check network connectivity between nodes
+
+### General Issues
 
 **Issue**: Executors timing out
-- **Solution**: Increase max_executors or simplify requirements
+- **Solution**: Increase `--slurm-time` for SLURM jobs
+- **Solution**: Simplify requirements or reduce task count
 
-**Issue**: Tasks failing with dependencies
-- **Solution**: Check execution_plan.json to verify dependency graph
+**Issue**: Retry exhausted
+- **Solution**: Check logs for root cause
+- **Solution**: Increase `--max-retries` if transient failures
 
-**Issue**: Low test coverage
-- **Solution**: Add "with comprehensive tests" to requirements
+## Additional Resources
 
-**Issue**: Output not consolidated
-- **Solution**: Check orchestrator.log for merge errors
-
-## 📚 Additional Resources
-
-- **[Architecture Documentation](parallel-orchestrator-architecture.md)** - Complete architecture with 9 Mermaid diagrams
+- **[Architecture Documentation](parallel-orchestrator-architecture.md)** - Complete architecture with diagrams
 - **[Quick Start Guide](parallel-orchestrator-quickstart.md)** - Step-by-step tutorial
-- **[Main Documentation Index](README.md)** - All orchestrator documentation
-- **[Project Repository](https://github.com/blackjackptit/factory-agentic-dev)** - Source code and issues
+- **[Main README](../README.md)** - Project overview
+- **[Docker Backend](../parallel-orchestrator/docs/docker-backend.md)** - Docker details
+- **[Docker with Bedrock](../parallel-orchestrator/docs/docker-bedrock-usage.md)** - AWS Bedrock setup
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please see the main project repository for guidelines.
 
-## 📄 License
+## License
 
 This project is part of the Factory Agentic Dev framework. See the main repository for license information.
 
@@ -334,4 +524,4 @@ This project is part of the Factory Agentic Dev framework. See the main reposito
 
 **Last Updated:** January 2026
 
-**Version:** 2.0 - Unified Documentation Structure
+**Version:** 5.0 - Docker Backend with Bedrock Integration

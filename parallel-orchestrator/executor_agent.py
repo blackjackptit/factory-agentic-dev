@@ -54,27 +54,44 @@ INSTRUCTIONS:
 4. Write clean, maintainable, and well-documented code
 5. Provide implementation details and file contents
 
-OUTPUT FORMAT:
-For each file, use this format:
-```language
-# filename: path/to/file.ext
-[file content here]
+OUTPUT FORMAT (CRITICAL):
+You MUST output the actual complete file contents in code blocks, NOT descriptions.
+For each file, use EXACTLY this format:
+```html
+# filename: index.html
+<!DOCTYPE html>
+<html>
+<!-- COMPLETE FILE CONTENT HERE -->
+</html>
 ```
+
+DO NOT output summaries, descriptions, or plans. Output the ACTUAL CODE that will be saved to files.
 
 REQUIREMENTS:
 {prompt}
 
-Please implement this task completely.
+Implement this completely with full file contents in code blocks.
 """
 
             # Use Claude CLI (in production, replace with actual API call)
+            # Get Bedrock model from environment or use default
+            bedrock_model = os.environ.get("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-5-20250929-v1:0")
+            use_bedrock = os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0") == "1"
+
+            cmd = [
+                "claude",
+                "--dangerously-skip-permissions",
+                "--print",
+            ]
+
+            # If using Bedrock, specify the model explicitly
+            if use_bedrock:
+                cmd.extend(["--model", bedrock_model])
+
+            cmd.extend(["-p", full_prompt])
+
             result = subprocess.run(
-                [
-                    "claude",
-                    "--dangerously-skip-permissions",
-                    "--print",
-                    "-p", full_prompt
-                ],
+                cmd,
                 cwd=str(self.output_dir),
                 capture_output=True,
                 text=True,
@@ -88,10 +105,12 @@ Please implement this task completely.
                     "error": None
                 }
             else:
+                # Capture both stdout and stderr for debugging
+                error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
                 return {
                     "success": False,
                     "response": None,
-                    "error": f"Claude CLI error: {result.stderr}"
+                    "error": f"Claude CLI error (exit {result.returncode}): {error_msg[:500]}"
                 }
 
         except subprocess.TimeoutExpired:
@@ -115,9 +134,36 @@ Please implement this task completely.
 
         created_files = []
 
-        # Pattern to match code blocks with filenames
-        pattern = r'```(?:\w+)?\s*\n#\s*filename:\s*([^\n]+)\n(.*?)```'
-        matches = re.finditer(pattern, response, re.DOTALL | re.IGNORECASE)
+        # First, save the raw response for debugging
+        response_file = self.output_dir / "claude_response.txt"
+        with open(response_file, 'w') as f:
+            f.write(response)
+        created_files.append(str(response_file))
+
+        # Try multiple patterns to extract files
+
+        # Pattern 1: # filename: path/to/file
+        pattern1 = r'```(?:\w+)?\s*\n#\s*filename:\s*([^\n]+)\n(.*?)```'
+        matches = list(re.finditer(pattern1, response, re.DOTALL | re.IGNORECASE))
+
+        # Pattern 2: <!-- filename: path/to/file -->
+        pattern2 = r'```(?:\w+)?\s*\n<!--\s*filename:\s*([^\n]+)\s*-->\n(.*?)```'
+        matches.extend(re.finditer(pattern2, response, re.DOTALL | re.IGNORECASE))
+
+        # Pattern 3: For single-file responses, save as index.html
+        if not matches and '<!DOCTYPE' in response.upper():
+            # Extract HTML content
+            html_match = re.search(r'```html\s*(.*?)```', response, re.DOTALL | re.IGNORECASE)
+            if html_match:
+                filepath = "index.html"
+                content = html_match.group(1).strip()
+                full_path = self.output_dir / filepath
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(full_path, 'w') as f:
+                    f.write(content)
+                created_files.append(str(full_path))
+                self.log(f"Created file: {filepath}")
+            return created_files
 
         for match in matches:
             filepath = match.group(1).strip()

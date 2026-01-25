@@ -2,56 +2,67 @@
 """
 Parallel Task Orchestrator
 Coordinates parallel executor agents using intelligent planning from PlannerAgent
+Supports multiple execution backends: Threading, SLURM, AWS ParallelCluster
 """
 
-import os
-import sys
 import json
+import os
 import time
 import shutil
-import threading
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
-from queue import Queue
 
 from planner_agent import PlannerAgent
 from executor_agent import ExecutorAgent
+from config import OrchestratorConfig, parse_args, print_config
+from backends import (
+    ExecutionBackend,
+    ThreadingBackend,
+    SlurmBackend,
+    AWSParallelClusterBackend,
+    AWSBatchBackend,
+    DockerBackend,
+)
 
 
 class ParallelOrchestrator:
     """
     Main orchestrator that coordinates parallel executors
     Uses PlannerAgent for intelligent complexity analysis and task planning
+    Supports multiple execution backends: Threading, SLURM, AWS ParallelCluster
     """
 
-    def __init__(self, requirements: str, output_dir: str = None, use_real_executors: bool = False):
+    def __init__(
+        self,
+        requirements: str,
+        output_dir: str = None,
+        use_real_executors: bool = False,
+        config: OrchestratorConfig = None
+    ):
         self.requirements = requirements
+        self.config = config
+
         # Default to centralized outputs directory
         if output_dir is None:
             output_dir = Path(__file__).parent.parent / "outputs" / "parallel-orchestrator"
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.max_executors = 5
+        self.max_executors = config.max_executors if config else 5
         self.use_real_executors = use_real_executors
         self.plan = None
         self.tasks = []
         self.results = []
-        self.executor_threads = []
-
-        # Task queue structures
-        self.task_queue = Queue()
-        self.completed_tasks: Set[str] = set()
-        self.in_progress_tasks: Set[str] = set()
-        self.task_lock = threading.Lock()
-        self.results_lock = threading.Lock()
 
         # Log file
         self.log_file = self.output_dir / "orchestrator.log"
 
         # PlannerAgent will be initialized in run() after max_executors is set
         self.planner = None
+
+        # Backend will be created based on config
+        self.backend: Optional[ExecutionBackend] = None
 
     def log(self, message: str):
         """Write log message to console and file"""
@@ -62,16 +73,37 @@ class ParallelOrchestrator:
         with open(self.log_file, "a") as f:
             f.write(log_entry + "\n")
 
+    def _create_backend(self) -> ExecutionBackend:
+        """Create the appropriate execution backend based on configuration"""
+        backend_type = self.config.backend_type if self.config else "threading"
+
+        self.log(f"Creating {backend_type} execution backend...")
+
+        if backend_type == "docker":
+            return DockerBackend(self.config, self.output_dir, self.log)
+        elif backend_type == "batch":
+            return AWSBatchBackend(self.config, self.output_dir, self.log)
+        elif backend_type == "aws":
+            return AWSParallelClusterBackend(self.config, self.output_dir, self.log)
+        elif backend_type == "slurm":
+            return SlurmBackend(self.config, self.output_dir, self.log)
+        else:
+            return ThreadingBackend(self.config, self.output_dir, self.log)
+
     def can_execute_task(self, task: Dict[str, Any]) -> bool:
         """
         Check if a task's dependencies are satisfied
         """
+        if self.backend:
+            return self.backend.can_execute_task(task)
+
         task_id = task["id"]
         dependencies = self.plan.get("dependencies", {}).get(task_id, [])
 
         # Check if all dependencies are completed
+        completed_tasks = self.backend.get_completed_tasks() if self.backend else set()
         for dep_id in dependencies:
-            if dep_id not in self.completed_tasks:
+            if dep_id not in completed_tasks:
                 return False
 
         return True
@@ -97,9 +129,11 @@ class ParallelOrchestrator:
             if self.use_real_executors:
                 # Use real ExecutorAgent with Claude API
                 agent = ExecutorAgent(executor_id, task, str(task_output_dir))
-                result = agent.execute(self.requirements)
+                # Execute the specific task description, with overall requirements as context
+                task_prompt = f"{task['description']}\n\nOverall project context: {self.requirements}"
+                result = agent.execute(task_prompt)
 
-                self.log(f"[{executor_name}] ✓ Task {task['id']} completed successfully")
+                self.log(f"[{executor_name}] Task {task['id']} completed successfully")
                 self.log(f"[{executor_name}]   Execution time: {result['execution_time']}")
                 self.log(f"[{executor_name}]   Files created: {len(result.get('output_files', []))}")
             else:
@@ -139,118 +173,72 @@ class ParallelOrchestrator:
                         f.write(f"# Task: {task['description']}\n\n")
                         f.write(f"# Implementation code would go here\n")
 
-                self.log(f"[{executor_name}] ✓ Task {task['id']} completed successfully")
+                self.log(f"[{executor_name}] Task {task['id']} completed successfully")
                 self.log(f"[{executor_name}]   Execution time: {result['execution_time']}")
                 self.log(f"[{executor_name}]   Files created: {len(result['output_files'])}")
 
-            with self.results_lock:
+            # Mark task complete via backend
+            if self.backend:
+                self.backend.mark_task_complete(task["id"], result)
+            else:
                 self.results.append(result)
-
-            # Mark task as completed
-            with self.task_lock:
-                self.completed_tasks.add(task["id"])
-                self.in_progress_tasks.discard(task["id"])
 
         except Exception as e:
-            self.log(f"[{executor_name}] ✗ Task {task['id']} failed: {str(e)}")
-            result = {
-                "task_id": task["id"],
-                "executor_id": executor_id,
-                "task_name": task["name"],
-                "status": "failed",
-                "error": str(e)
-            }
-            with self.results_lock:
-                self.results.append(result)
+            self.log(f"[{executor_name}] Task {task['id']} failed: {str(e)}")
+            error_msg = str(e)
 
-            with self.task_lock:
-                self.in_progress_tasks.discard(task["id"])
-
-    def executor_worker(self, executor_id: int):
-        """
-        Worker function for executor thread - continuously processes tasks from queue
-        """
-        executor_name = f"Executor-{executor_id}"
-        self.log(f"[{executor_name}] Worker started")
-
-        while True:
-            # Look for available tasks
-            task_to_execute = None
-
-            with self.task_lock:
-                # Find a task that:
-                # 1. Not completed
-                # 2. Not in progress
-                # 3. Dependencies satisfied
-                for task in self.tasks:
-                    task_id = task["id"]
-                    if (task_id not in self.completed_tasks and
-                        task_id not in self.in_progress_tasks and
-                        self.can_execute_task(task)):
-                        task_to_execute = task
-                        self.in_progress_tasks.add(task_id)
-                        break
-
-            if task_to_execute:
-                # Execute the task
-                self.execute_task(task_to_execute, executor_id)
+            if self.backend:
+                self.backend.mark_task_failed(task["id"], error_msg)
             else:
-                # Check if all tasks are done
-                with self.task_lock:
-                    total_processed = len(self.completed_tasks) + len([r for r in self.results if r["status"] == "failed"])
-                    if total_processed >= len(self.tasks):
-                        self.log(f"[{executor_name}] All tasks processed, shutting down")
-                        break
-
-                # Wait a bit before checking again (in case dependencies need to complete)
-                time.sleep(0.5)
-
-        self.log(f"[{executor_name}] Worker finished")
+                result = {
+                    "task_id": task["id"],
+                    "executor_id": executor_id,
+                    "task_name": task["name"],
+                    "status": "failed",
+                    "error": error_msg
+                }
+                self.results.append(result)
 
     def execute_parallel(self):
         """
-        Execute all tasks using a task queue model
-        M executors work through N tasks dynamically
+        Execute all tasks using the configured backend
         """
         self.log("\n" + "="*80)
-        self.log("STEP 3: EXECUTING TASKS WITH TASK QUEUE MODEL")
+        self.log("STEP 3: EXECUTING TASKS WITH BACKEND")
         self.log("="*80)
 
+        # Create and initialize backend
+        self.backend = self._create_backend()
+        self.backend.initialize()
+
+        # Log backend info
+        backend_info = self.backend.get_backend_info()
+        self.log(f"  Backend: {backend_info['backend']}")
+        for key, value in backend_info.items():
+            if key != 'backend':
+                self.log(f"    {key}: {value}")
+
         num_tasks = len(self.tasks)
-        num_executors_needed = min(num_tasks, self.max_executors)
-
-        self.log(f"  Total tasks: {num_tasks}")
+        self.log(f"\n  Total tasks: {num_tasks}")
         self.log(f"  Executor budget: {self.max_executors}")
-        self.log(f"  Executors to spawn: {num_executors_needed}")
-        self.log(f"  Execution model: {num_executors_needed} executors working through {num_tasks} tasks")
-        self.log(f"  Tasks per executor: ~{num_tasks / num_executors_needed:.1f} average")
 
-        # Initialize task queue and tracking
-        self.completed_tasks.clear()
-        self.in_progress_tasks.clear()
+        # Submit tasks to backend
+        self.backend.submit_tasks(
+            self.tasks,
+            self.plan,
+            self.requirements,
+            self.use_real_executors
+        )
 
-        # Create and start executor worker threads
-        self.log(f"\n  Spawning {num_executors_needed} executor workers...")
-        for executor_id in range(1, num_executors_needed + 1):
-            thread = threading.Thread(
-                target=self.executor_worker,
-                args=(executor_id,),
-                name=f"Executor-{executor_id}"
-            )
-            self.executor_threads.append(thread)
-            thread.start()
-            time.sleep(0.2)  # Stagger starts slightly
+        # For threading backend, set the executor function
+        if isinstance(self.backend, ThreadingBackend):
+            self.backend.set_executor_function(self.execute_task)
 
-        self.log(f"  ✓ All {num_executors_needed} executor workers started")
-        self.log("  Executors will dynamically pick tasks from queue...")
-        self.log("  Waiting for all tasks to complete...\n")
+        # Wait for all tasks to complete
+        self.backend.wait_for_completion(self.max_executors)
 
-        # Wait for all executor threads to complete
-        for thread in self.executor_threads:
-            thread.join()
-
-        self.log(f"\n  ✓ All executor workers finished")
-        self.log(f"  ✓ Total tasks completed: {len(self.completed_tasks)}")
+        # Collect results
+        self.results = self.backend.get_results()
 
     def aggregate_results(self) -> Dict[str, Any]:
         """
@@ -260,33 +248,34 @@ class ParallelOrchestrator:
         self.log("STEP 4: AGGREGATING RESULTS")
         self.log("="*80)
 
-        completed = sum(1 for r in self.results if r["status"] == "completed")
-        failed = sum(1 for r in self.results if r["status"] == "failed")
+        completed = sum(1 for r in self.results if r.get("status") == "completed")
+        failed = sum(1 for r in self.results if r.get("status") == "failed")
 
         total_files = sum(len(r.get("output_files", [])) for r in self.results
-                         if r["status"] == "completed")
+                         if r.get("status") == "completed")
 
         total_loc = sum(r.get("metrics", {}).get("lines_of_code", 0)
-                       for r in self.results if r["status"] == "completed")
+                       for r in self.results if r.get("status") == "completed")
 
         avg_coverage = (sum(r.get("metrics", {}).get("test_coverage", 0)
-                           for r in self.results if r["status"] == "completed") /
+                           for r in self.results if r.get("status") == "completed") /
                        max(completed, 1))
 
         summary = {
             "total_tasks": len(self.tasks),
             "completed": completed,
             "failed": failed,
-            "success_rate": f"{(completed / len(self.tasks) * 100):.1f}%",
+            "success_rate": f"{(completed / max(len(self.tasks), 1) * 100):.1f}%",
             "total_files_created": total_files,
             "total_lines_of_code": total_loc,
             "average_test_coverage": f"{avg_coverage:.1f}%",
+            "backend": self.backend.get_backend_info() if self.backend else {"backend": "threading"},
             "results": self.results
         }
 
         self.log(f"  Total tasks: {summary['total_tasks']}")
-        self.log(f"  ✓ Completed: {summary['completed']}")
-        self.log(f"  ✗ Failed: {summary['failed']}")
+        self.log(f"  Completed: {summary['completed']}")
+        self.log(f"  Failed: {summary['failed']}")
         self.log(f"  Success rate: {summary['success_rate']}")
         self.log(f"  Total files created: {summary['total_files_created']}")
         self.log(f"  Total lines of code: {summary['total_lines_of_code']}")
@@ -297,7 +286,7 @@ class ParallelOrchestrator:
         with open(summary_file, "w") as f:
             json.dump(summary, f, indent=2)
 
-        self.log(f"\n  ✓ Summary saved to {summary_file}")
+        self.log(f"\n  Summary saved to {summary_file}")
 
         return summary
 
@@ -342,8 +331,7 @@ class ParallelOrchestrator:
                 task_id = task_dir.name
                 self.log(f"    - Merging {task_id}")
 
-                # Find the task info from results
-                task_result = next((r for r in self.results if r["task_id"] == task_id), None)
+                # Find the task info
                 task_info = next((t for t in self.tasks if t["id"] == task_id), None)
 
                 if not task_info:
@@ -357,7 +345,7 @@ class ParallelOrchestrator:
                     target_file = src_dir / f"{task_name}.py"
                     shutil.copy2(impl_file, target_file)
                     files_merged += 1
-                    self.log(f"      → {target_file.relative_to(self.output_dir)}")
+                    self.log(f"      -> {target_file.relative_to(self.output_dir)}")
 
                 # Process tests.py
                 test_file = task_dir / "tests.py"
@@ -365,7 +353,7 @@ class ParallelOrchestrator:
                     target_file = tests_dir / f"test_{task_name}.py"
                     shutil.copy2(test_file, target_file)
                     files_merged += 1
-                    self.log(f"      → {target_file.relative_to(self.output_dir)}")
+                    self.log(f"      -> {target_file.relative_to(self.output_dir)}")
 
                 # Process README.md
                 readme_file = task_dir / "README.md"
@@ -382,11 +370,14 @@ class ParallelOrchestrator:
             f.write(f"## Overview\n\n")
             f.write(f"This project was generated from {len(self.tasks)} tasks executed by ")
             f.write(f"{len(executor_dirs)} parallel executors.\n\n")
+            if self.backend:
+                backend_info = self.backend.get_backend_info()
+                f.write(f"Backend: {backend_info['backend']}\n\n")
             f.write(f"## Components\n\n")
             f.write("\n".join(readme_sections))
 
         files_merged += 1
-        self.log(f"\n  ✓ Created combined README.md")
+        self.log(f"\n  Created combined README.md")
 
         # Copy execution summary and plan to docs directory
         summary_file = self.output_dir / "execution_summary.json"
@@ -395,14 +386,14 @@ class ParallelOrchestrator:
         if summary_file.exists():
             shutil.copy2(summary_file, docs_dir / "execution_summary.json")
             files_merged += 1
-            self.log(f"  ✓ Copied execution summary to docs/")
+            self.log(f"  Copied execution summary to docs/")
 
         if plan_file.exists():
             shutil.copy2(plan_file, docs_dir / "execution_plan.json")
             files_merged += 1
-            self.log(f"  ✓ Copied execution plan to docs/")
+            self.log(f"  Copied execution plan to docs/")
 
-        self.log(f"\n  ✓ Consolidation complete!")
+        self.log(f"\n  Consolidation complete!")
         self.log(f"  Total files consolidated: {files_merged}")
         self.log(f"  Project location: {self.output_dir}")
         self.log(f"  Structure:")
@@ -410,6 +401,143 @@ class ParallelOrchestrator:
         self.log(f"    - tests/     : {len(list(tests_dir.glob('*.py')))} test files")
         self.log(f"    - docs/      : {len(list(docs_dir.glob('*')))} documentation files")
         self.log(f"    - README.md  : Combined documentation")
+
+    def _run_planner_in_docker(self) -> Tuple[int, Dict[str, Any]]:
+        """
+        Run the planner agent in a Docker container.
+
+        Returns:
+            tuple: (num_tasks, plan) - number of tasks and the execution plan
+        """
+        import docker
+
+        self.log("\n  Running planner in Docker container...")
+
+        # Get Docker configuration
+        docker_config = self.config.docker if hasattr(self.config, 'docker') else None
+        docker_image = docker_config.image if docker_config else "parallel-orchestrator:latest"
+
+        # Setup planner output directory
+        planner_dir = self.output_dir / "planner"
+        planner_dir.mkdir(parents=True, exist_ok=True)
+
+        # Prepare environment variables
+        env = {
+            "OUTPUT_DIR": "/output",
+            "REQUIREMENTS": self.requirements,
+            "MAX_EXECUTORS": str(self.max_executors),
+        }
+
+        # Add Bedrock or Anthropic credentials if available
+        if docker_config and docker_config.use_bedrock:
+            env["USE_BEDROCK"] = "1"
+            if docker_config.aws_access_key_id:
+                env["AWS_ACCESS_KEY_ID"] = docker_config.aws_access_key_id
+            elif os.environ.get("AWS_ACCESS_KEY_ID"):
+                env["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
+
+            if docker_config.aws_secret_access_key:
+                env["AWS_SECRET_ACCESS_KEY"] = docker_config.aws_secret_access_key
+            elif os.environ.get("AWS_SECRET_ACCESS_KEY"):
+                env["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+
+            if docker_config.aws_session_token:
+                env["AWS_SESSION_TOKEN"] = docker_config.aws_session_token
+            elif os.environ.get("AWS_SESSION_TOKEN"):
+                env["AWS_SESSION_TOKEN"] = os.environ.get("AWS_SESSION_TOKEN")
+
+            if docker_config.bedrock_region:
+                env["BEDROCK_REGION"] = docker_config.bedrock_region
+            if docker_config.bedrock_model:
+                env["BEDROCK_MODEL"] = docker_config.bedrock_model
+        else:
+            # Use Anthropic API key
+            if docker_config and docker_config.anthropic_api_key:
+                env["ANTHROPIC_API_KEY"] = docker_config.anthropic_api_key
+            elif os.environ.get("ANTHROPIC_API_KEY"):
+                env["ANTHROPIC_API_KEY"] = os.environ.get("ANTHROPIC_API_KEY")
+
+        # Prepare volumes
+        volumes = {
+            str(planner_dir.absolute()): {
+                'bind': '/output',
+                'mode': 'rw'
+            }
+        }
+
+        # Connect to Docker
+        try:
+            client = docker.from_env()
+        except Exception as e:
+            raise RuntimeError(f"Failed to connect to Docker: {e}")
+
+        # Start planner container
+        container_name = "po-planner"
+        self.log(f"    Starting planner container: {container_name}")
+
+        try:
+            # Remove existing container if exists
+            try:
+                old_container = client.containers.get(container_name)
+                old_container.remove(force=True)
+            except docker.errors.NotFound:
+                pass
+
+            # Run container
+            container = client.containers.run(
+                image=docker_image,
+                name=container_name,
+                environment=env,
+                volumes=volumes,
+                detach=True,
+                remove=False,
+                command='python3 /app/docker_planner.py'
+            )
+
+            self.log(f"      Container started: {container.id[:12]}")
+            self.log(f"      Waiting for planner to complete...")
+
+            # Wait for container to finish
+            result = container.wait()
+            exit_code = result['StatusCode']
+
+            # Get logs
+            logs = container.logs().decode('utf-8')
+            self.log(f"      Planner logs:")
+            for line in logs.split('\n'):
+                if line.strip():
+                    self.log(f"        {line}")
+
+            # Clean up container
+            container.remove()
+
+            if exit_code != 0:
+                raise RuntimeError(f"Planner container failed with exit code {exit_code}")
+
+            # Read planner output
+            output_file = planner_dir / "planner_output.json"
+            if not output_file.exists():
+                raise RuntimeError("Planner did not produce output file")
+
+            with open(output_file, 'r') as f:
+                output_data = json.load(f)
+
+            if not output_data.get("success", False):
+                error = output_data.get("error", "Unknown error")
+                raise RuntimeError(f"Planner failed: {error}")
+
+            num_tasks = output_data["num_tasks"]
+            plan = output_data["plan"]
+
+            self.log(f"    ✓ Planner completed successfully")
+            self.log(f"      Tasks: {num_tasks}")
+            self.log(f"      Plan tasks: {len(plan['tasks'])}")
+
+            return num_tasks, plan
+
+        except Exception as e:
+            self.log(f"    ✗ Failed to run planner in Docker: {e}")
+            raise
 
     def run(self) -> Dict[str, Any]:
         """
@@ -421,25 +549,40 @@ class ParallelOrchestrator:
         self.log("="*80)
         self.log(f"Requirements: {self.requirements}")
         self.log(f"Output directory: {self.output_dir}")
+        if self.config:
+            self.log(f"Backend type: {self.config.backend_type}")
 
         start_time = time.time()
 
         try:
-            # Initialize PlannerAgent with current max_executors setting
-            if self.planner is None:
-                self.planner = PlannerAgent(self.requirements, str(self.output_dir), self.max_executors)
+            # Check if we should run planner in Docker
+            use_docker_planner = (
+                self.config and
+                hasattr(self.config, 'docker') and
+                self.config.docker and
+                self.config.docker.planner_in_docker
+            )
 
-            # Step 1: Analyze complexity (delegated to PlannerAgent)
-            # Returns number of tasks to create (can be more than max_executors)
-            num_tasks = self.planner.analyze_complexity()
+            if use_docker_planner:
+                # Run planner in Docker container
+                num_tasks, plan = self._run_planner_in_docker()
+            else:
+                # Run planner locally (default behavior)
+                # Initialize PlannerAgent with current max_executors setting
+                if self.planner is None:
+                    self.planner = PlannerAgent(self.requirements, str(self.output_dir), self.max_executors)
 
-            # Step 2: Create execution plan (delegated to PlannerAgent)
-            # Creates num_tasks tasks that will be executed by max_executors workers
-            plan = self.planner.create_plan(num_tasks)
+                # Step 1: Analyze complexity (delegated to PlannerAgent)
+                # Returns number of tasks to create (can be more than max_executors)
+                num_tasks = self.planner.analyze_complexity()
+
+                # Step 2: Create execution plan (delegated to PlannerAgent)
+                # Creates num_tasks tasks that will be executed by max_executors workers
+                plan = self.planner.create_plan(num_tasks)
             self.plan = plan
             self.tasks = plan["tasks"]
 
-            # Step 3: Execute tasks in parallel
+            # Step 3: Execute tasks using the configured backend
             self.execute_parallel()
 
             # Step 4: Aggregate results
@@ -447,6 +590,10 @@ class ParallelOrchestrator:
 
             # Step 5: Merge outputs into unified structure
             self.merge_outputs()
+
+            # Cleanup backend
+            if self.backend:
+                self.backend.cleanup()
 
             total_time = time.time() - start_time
 
@@ -459,69 +606,38 @@ class ParallelOrchestrator:
             return summary
 
         except Exception as e:
-            self.log(f"\n✗ ORCHESTRATOR FAILED: {str(e)}")
+            self.log(f"\n ORCHESTRATOR FAILED: {str(e)}")
             raise
 
 
 def main():
     """Main entry point"""
-    import argparse
+    # Parse arguments using new config module
+    config = parse_args()
 
-    parser = argparse.ArgumentParser(
-        description='Parallel Task Orchestrator - Intelligently scales executor agents based on task complexity',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
-Examples:
-  # Simple task with default settings (max 5 executors)
-  python orchestrator.py "Create a calculator function"
+    # Print configuration
+    print_config(config)
 
-  # Complex task with custom executor budget
-  python orchestrator.py "Build e-commerce platform" --max-executors 10
-
-  # With custom output directory
-  python orchestrator.py "Build chat app" --output-dir my-project --max-executors 3
-        '''
+    # Create orchestrator with config
+    orchestrator = ParallelOrchestrator(
+        config.requirements,
+        config.output_dir,
+        use_real_executors=config.use_real_executors,
+        config=config
     )
 
-    parser.add_argument('requirements', help='Project requirements description')
-    parser.add_argument('--output-dir', '-o', default=None,
-                       help='Output directory for generated files (default: ../outputs/parallel-orchestrator/)')
-    parser.add_argument('--max-executors', '-m', type=int, default=5,
-                       help='Maximum number of parallel executors (budget) (default: 5)')
-    parser.add_argument('--real', action='store_true',
-                       help='Use real Claude API calls to generate actual code (slower but produces working code)')
-
-    args = parser.parse_args()
-
-    # Validate max_executors
-    if args.max_executors < 1:
-        print("Error: --max-executors must be at least 1")
-        sys.exit(1)
-    if args.max_executors > 20:
-        print("Warning: --max-executors > 20 may cause performance issues")
-
-    print(f"\n{'='*80}")
-    print(f"CONFIGURATION")
-    print(f"{'='*80}")
-    print(f"Requirements: {args.requirements}")
-    print(f"Output directory: {args.output_dir}")
-    print(f"Executor budget: {args.max_executors} (planner will decide optimal count within this budget)")
-    print(f"Execution mode: {'REAL (generates actual code)' if args.real else 'SIMULATED (fast demo)'}")
-    print(f"{'='*80}\n")
-
-    orchestrator = ParallelOrchestrator(args.requirements, args.output_dir, use_real_executors=args.real)
-    orchestrator.max_executors = args.max_executors
+    # Run orchestration
     summary = orchestrator.run()
 
     print("\n" + "="*80)
     print("EXECUTION COMPLETE")
     print("="*80)
-    print(f"Executors used: {summary['total_tasks']} / {args.max_executors} (budget)")
+    print(f"Backend: {config.backend_type.upper()}")
+    print(f"Tasks completed: {summary['completed']} / {summary['total_tasks']}")
     print(f"Success Rate: {summary['success_rate']}")
     print(f"Files Created: {summary['total_files_created']}")
     print(f"Lines of Code: {summary['total_lines_of_code']}")
-    print(f"\nCheck output directory: {args.output_dir}")
-
+    print(f"\nCheck output directory: {config.output_dir or '(default)'}")
 
 if __name__ == "__main__":
     main()

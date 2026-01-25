@@ -138,7 +138,7 @@ Provide ONLY the JSON object, no additional text.
                 cwd=str(self.output_dir),
                 capture_output=True,
                 text=True,
-                timeout=60  # 1 minute timeout
+                timeout=300  # 1 minute timeout
             )
 
             if result.returncode == 0:
