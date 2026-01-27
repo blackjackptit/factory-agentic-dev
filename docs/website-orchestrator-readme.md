@@ -1,6 +1,6 @@
 # Website Orchestrator
 
-An intelligent AI-powered system that coordinates three specialized agents to build complete websites from natural language requirements. Supports both local and Docker execution with Anthropic API or AWS Bedrock.
+An intelligent AI-powered system that coordinates three specialized agents to build complete websites from natural language requirements. Supports three execution modes: Claude CLI (local), Docker containers, and direct SDK calls with Anthropic API or AWS Bedrock.
 
 ## Overview
 
@@ -13,8 +13,9 @@ The Website Orchestrator automates the entire website development process throug
 ### Key Features
 
 - **Sequential Agent Workflow**: Each agent builds on the previous agent's output
-- **Dual Execution Modes**: Run locally or in isolated Docker containers
+- **Three Execution Modes**: Claude CLI (local), Docker containers, or direct SDK calls
 - **Flexible AI Backend**: Use Anthropic API or AWS Bedrock for inference
+- **CLI + Bedrock Support**: Use CLAUDE_CODE_USE_BEDROCK=1 for Bedrock via CLI
 - **Context Preservation**: Full traceability from requirements to tests
 - **Production Ready**: Docker support for reproducible builds
 
@@ -22,14 +23,20 @@ The Website Orchestrator automates the entire website development process throug
 
 ### Prerequisites
 
-**For Local Execution:**
+**For Claude CLI Mode (Local - Recommended):**
 - Python 3.10+
-- Anthropic API key (if using Anthropic API)
-- AWS credentials (if using AWS Bedrock)
+- Claude CLI installed (`claude` command available)
+- AWS credentials (if using Bedrock via CLAUDE_CODE_USE_BEDROCK=1)
+- Or Anthropic API key (for direct API usage)
 
-**For Docker Execution:**
+**For Docker Mode:**
 - Docker installed and running
 - AWS credentials (for Bedrock mode)
+
+**For SDK Mode:**
+- Python 3.10+
+- `anthropic` or `boto3` Python package
+- Anthropic API key or AWS credentials
 
 ### Installation
 
@@ -47,10 +54,20 @@ cd orchestrator/docker
 
 ### Basic Usage
 
-**Local execution with Anthropic API:**
+**Claude CLI with AWS Bedrock (Recommended):**
 ```bash
-export ANTHROPIC_API_KEY="your-api-key"
+export CLAUDE_CODE_USE_BEDROCK=1
+export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+
 python orchestrator/build_website.py "Build a todo list app with add, edit, and delete functionality"
+```
+
+**Claude CLI with Anthropic (Default):**
+```bash
+# Uses default Claude CLI configuration
+python orchestrator/build_website.py "Build a blog website with posts and comments"
 ```
 
 **Docker execution with AWS Bedrock:**
@@ -58,7 +75,7 @@ python orchestrator/build_website.py "Build a todo list app with add, edit, and 
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 
-python orchestrator/build_website.py "Build a blog website with posts and comments" \
+python orchestrator/build_website.py "Build a dashboard app" \
     --docker \
     --docker-use-bedrock \
     --docker-bedrock-region eu-central-1
@@ -187,21 +204,34 @@ outputs/website-orchestrator/
 
 ## Execution Modes
 
-### Local Mode
+### Local Mode (Claude CLI)
 
 **Advantages:**
 - Fast iteration
 - Direct feedback
 - Lower latency
+- No Docker overhead
+- Works with both Anthropic API and AWS Bedrock
 
 **Use when:**
 - Rapid prototyping
 - Development iteration
 - Testing requirements
+- Local development with Claude CLI installed
 
-**Example:**
+**Example with Bedrock (Recommended):**
 ```bash
-export ANTHROPIC_API_KEY="your-key"
+export CLAUDE_CODE_USE_BEDROCK=1
+export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+
+python build_website.py "Build a calculator app"
+```
+
+**Example with Anthropic API:**
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
 python build_website.py "Build a calculator app"
 ```
 
@@ -230,12 +260,23 @@ python build_website.py "Build a calculator app" \
 
 ### Environment Variables
 
-#### Anthropic API Mode
+#### Claude CLI with Bedrock (Recommended)
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+export CLAUDE_CODE_USE_BEDROCK=1
+export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_SESSION_TOKEN="..."  # Optional for temporary credentials
 ```
 
-#### AWS Bedrock Mode
+#### Claude CLI with Anthropic API
+```bash
+# Uses default Claude CLI configuration
+# No additional environment variables needed if Claude CLI is configured
+export ANTHROPIC_API_KEY="sk-ant-..."  # Optional override
+```
+
+#### AWS Bedrock SDK Mode (Docker)
 ```bash
 export USE_BEDROCK=1
 export AWS_ACCESS_KEY_ID="AKIA..."
@@ -243,6 +284,11 @@ export AWS_SECRET_ACCESS_KEY="..."
 export AWS_SESSION_TOKEN="..."  # Optional
 export BEDROCK_REGION="eu-central-1"
 export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+```
+
+#### Anthropic API SDK Mode
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 ### Docker Configuration
@@ -422,7 +468,20 @@ python build_website.py "Build app" \
 
 ### Different Models
 
-Use specific Claude models:
+**Local CLI with Bedrock:**
+```bash
+# Latest Sonnet (default)
+export CLAUDE_CODE_USE_BEDROCK=1
+export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+python build_website.py "Build app"
+
+# Opus (if available in your region)
+export CLAUDE_CODE_USE_BEDROCK=1
+export BEDROCK_MODEL="anthropic.claude-opus-4-5-..."
+python build_website.py "Build app"
+```
+
+**Docker with Bedrock:**
 ```bash
 # Latest Sonnet
 python build_website.py "Build app" \
@@ -438,6 +497,41 @@ python build_website.py "Build app" \
 ```
 
 ## Troubleshooting
+
+### CLI Issues
+
+**Problem:** Claude CLI not found
+```
+WARNING: Claude CLI not found, falling back to SDK mode
+```
+
+**Solution:**
+```bash
+# Install Claude CLI (follow official instructions)
+# Verify installation
+claude --version
+
+# Configure with API key or AWS credentials
+claude config
+```
+
+**Problem:** Claude CLI Bedrock configuration
+```
+ERROR: Failed to call Claude API with Bedrock
+```
+
+**Solution:**
+```bash
+# Ensure AWS credentials are properly set
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+
+# Verify Bedrock model ID matches your region
+export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+# Test Claude CLI with Bedrock
+claude --model "$BEDROCK_MODEL" -p "Hello"
+```
 
 ### Docker Issues
 
@@ -540,8 +634,14 @@ python build_website.py "Build a complete social media platform with real-time c
 
 ### Execution Speed
 
-**Fastest:** Local + Anthropic API
+**Fastest:** Local CLI (Anthropic or Bedrock)
 ```bash
+# With Bedrock (Recommended)
+export CLAUDE_CODE_USE_BEDROCK=1
+export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+python build_website.py "Build app"
+
+# With Anthropic API
 python build_website.py "Build app"
 ```
 
