@@ -114,7 +114,6 @@ Examples:
             print(f"Bedrock Model: {args.docker_bedrock_model}")
     else:
         # Show API mode for local execution
-        from claude_api import ClaudeAPI
         import os
         use_bedrock = os.environ.get("USE_BEDROCK", "0") == "1" or \
                      os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0") == "1"
