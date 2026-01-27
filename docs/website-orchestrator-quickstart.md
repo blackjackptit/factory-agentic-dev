@@ -2,15 +2,47 @@
 
 Get your website built in 5 minutes!
 
-## Step 1: Verify Claude Code CLI
+## Prerequisites
 
-Make sure you have Claude Code CLI installed:
+Choose one of these options:
 
+**Option A: Claude CLI (Recommended)**
 ```bash
+# Install Claude Code CLI
+# See: https://github.com/anthropics/claude-code
+
+# Verify installation
 claude --version
 ```
 
-If not installed, get it from: https://github.com/anthropics/claude-code
+**Option B: Docker**
+```bash
+# Just need Docker installed
+docker --version
+```
+
+## Step 1: Setup Environment
+
+**For Claude CLI + Bedrock (Recommended):**
+```bash
+export CLAUDE_CODE_USE_BEDROCK=1
+export BEDROCK_MODEL="global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+```
+
+**For Claude CLI + Anthropic:**
+```bash
+# Claude CLI will use your configured credentials
+# Or set explicitly:
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+**For Docker + Bedrock:**
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+```
 
 ## Step 2: Navigate to Orchestrator
 
@@ -18,12 +50,18 @@ If not installed, get it from: https://github.com/anthropics/claude-code
 cd orchestrator
 ```
 
-No dependencies needed - the orchestrator uses Claude Code CLI directly!
-
 ## Step 3: Build Your First Website
 
+**Using Claude CLI (fastest):**
 ```bash
 python build_website.py "Build a todo list app with add, edit, delete features"
+```
+
+**Using Docker (isolated):**
+```bash
+python build_website.py "Build a todo list app with add, edit, delete features" \
+    --docker \
+    --docker-use-bedrock
 ```
 
 ## Step 4: Watch the Magic
@@ -37,24 +75,52 @@ This takes about 3-4 minutes.
 
 ## Step 5: Check Results
 
-Results are saved to `output/` directory:
+Results are saved to `../outputs/website-orchestrator/` directory by default:
 
 ```bash
-ls -la output/
+ls -la ../outputs/website-orchestrator/
 ```
 
 You'll see:
-- `design_*.json` - UI/UX specifications
-- `implementation_*.json` - React code
-- `testing_*.json` - Test suite
-- `complete_summary_*.json` - Everything combined
+```
+outputs/website-orchestrator/
+├── design/
+│   ├── design_spec.md          # Design specifications
+│   └── design_phase.json       # Raw design output
+├── implementation/
+│   ├── components/             # React components
+│   ├── styles/                 # CSS/styling files
+│   ├── package.json            # Project dependencies
+│   └── setup_instructions.md   # Setup guide
+├── testing/
+│   ├── tests/                  # Test files
+│   └── test_plan.md           # Testing strategy
+└── orchestration_report.json   # Execution metrics
+```
 
 ## Step 6: Use the Code
 
-1. Open the `implementation_*.json` file
-2. Follow the setup instructions
-3. Copy the React components
-4. Run the tests
+1. Read the setup instructions:
+   ```bash
+   cat ../outputs/website-orchestrator/implementation/setup_instructions.md
+   ```
+
+2. Copy the generated project:
+   ```bash
+   cp -r ../outputs/website-orchestrator/implementation/* ./my-website/
+   ```
+
+3. Install dependencies and run:
+   ```bash
+   cd my-website
+   npm install
+   npm start
+   ```
+
+4. Run tests:
+   ```bash
+   npm test
+   ```
 
 ## Quick Examples
 
@@ -78,34 +144,44 @@ python build_website.py "Analytics dashboard with charts and data tables"
 python build_website.py "Product catalog with cart and checkout"
 ```
 
-## Using Example Scripts
-
-```bash
-cd examples
-
-# Pre-configured todo app
-python todo_app.py
-
-# Pre-configured dashboard
-python dashboard.py
-```
-
 ## What's Next?
 
-- Read the full [README.md](README.md) for detailed documentation
-- Explore more complex examples
-- Customize the subagents for your needs
-- Try different types of websites
+- Read the full [Website Orchestrator README](website-orchestrator-readme.md) for detailed documentation
+- Check the [Architecture Documentation](website-orchestrator-architecture.md) for system design
+- Explore Docker mode for production deployments
+- Try different AI backends (Anthropic vs Bedrock)
 
 ## Common Issues
 
 **"Claude Code CLI is not available"**
 - Install Claude Code CLI: https://github.com/anthropics/claude-code
 - Make sure `claude` command is in your PATH
+- Alternative: Use Docker mode with `--docker` flag
+
+**"AWS credentials not found" (when using Bedrock)**
+- Set AWS credentials:
+  ```bash
+  export AWS_ACCESS_KEY_ID="your-key"
+  export AWS_SECRET_ACCESS_KEY="your-secret"
+  ```
+- Or configure AWS CLI: `aws configure`
+
+**"Docker image not found"**
+- Build the Docker image first:
+  ```bash
+  cd orchestrator/docker
+  ./build.sh
+  ```
 
 **Takes too long**
 - Normal for complex websites (3-5 minutes)
 - Complex requirements take longer to process
+- CLI mode is faster than Docker mode
+
+**Bedrock model errors**
+- Verify model ID matches your region
+- Use global model IDs for cross-region support
+- Check AWS Bedrock console for available models
 
 ## Tips for Better Results
 
