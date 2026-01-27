@@ -2,7 +2,7 @@
 
 ## System Overview
 
-The Website Orchestrator is an intelligent system that coordinates three specialized AI agents to build complete websites. It analyzes requirements, creates design specifications, implements React components, and generates test suites. The architecture supports both local and Docker execution modes with AI inference via Anthropic API or AWS Bedrock.
+The Website Orchestrator is an intelligent system that coordinates three specialized AI agents to build complete websites. It analyzes requirements, creates design specifications, implements React components, and generates test suites. The architecture supports three execution modes: Claude CLI (local), Docker (containerized), and direct SDK calls, with AI inference via Anthropic API or AWS Bedrock.
 
 ## High-Level Architecture
 
@@ -10,8 +10,8 @@ The Website Orchestrator is an intelligent system that coordinates three special
 graph TB
     subgraph Input["Input Phase"]
         REQ["User Requirements<br/>Website Description"]
-        MODE["Execution Mode<br/>• Local<br/>• Docker"]
-        AI["AI Backend<br/>• Anthropic API<br/>• AWS Bedrock"]
+        MODE["Execution Mode<br/>• CLI (Local)<br/>• Docker<br/>• SDK Direct"]
+        AI["AI Backend<br/>• Claude CLI<br/>• Anthropic API<br/>• AWS Bedrock"]
     end
 
     subgraph Orchestrator["Website Orchestrator"]
@@ -27,8 +27,9 @@ graph TB
     end
 
     subgraph Execution["Execution Layer"]
-        LOCAL["Local Execution<br/>• Direct API calls<br/>• In-process agents<br/>• Fast iteration"]
+        CLI["CLI Execution<br/>• Claude CLI subprocess<br/>• Local agents<br/>• Fast iteration<br/>• Bedrock support"]
         DOCKER["Docker Execution<br/>• Containerized agents<br/>• Volume mounts<br/>• Environment isolation"]
+        SDK["SDK Execution<br/>• Direct API calls<br/>• Python SDK<br/>• Fallback mode"]
     end
 
     subgraph AI["AI Inference"]
@@ -55,18 +56,24 @@ graph TB
     IMPL -->|Context| SEQ
     SEQ -->|Step 3| TEST
 
-    DESIGN -.->|local| LOCAL
-    IMPL -.->|local| LOCAL
-    TEST -.->|local| LOCAL
+    DESIGN -.->|cli| CLI
+    IMPL -.->|cli| CLI
+    TEST -.->|cli| CLI
 
     DESIGN -.->|docker| DOCKER
     IMPL -.->|docker| DOCKER
     TEST -.->|docker| DOCKER
 
-    LOCAL --> ANTHROPIC
-    LOCAL --> BEDROCK
+    DESIGN -.->|sdk| SDK
+    IMPL -.->|sdk| SDK
+    TEST -.->|sdk| SDK
+
+    CLI --> ANTHROPIC
+    CLI --> BEDROCK
     DOCKER --> ANTHROPIC
     DOCKER --> BEDROCK
+    SDK --> ANTHROPIC
+    SDK --> BEDROCK
 
     DESIGN --> DESIGN_OUT
     IMPL --> CODE_OUT
@@ -170,7 +177,48 @@ classDiagram
 
 ## Execution Modes
 
-### Local Execution Mode
+### CLI Execution Mode (Default)
+
+Executes agents using Claude CLI as a subprocess, supporting both Anthropic API and AWS Bedrock.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Orchestrator
+    participant Agent
+    participant ClaudeAPI
+    participant ClaudeCLI
+    participant Backend
+
+    User->>Orchestrator: build_website(requirements)<br/>export CLAUDE_CODE_USE_BEDROCK=1
+    Orchestrator->>Agent: execute(requirements)
+    Agent->>Orchestrator: delegate_to_subagent(prompt)
+    Orchestrator->>ClaudeAPI: query(prompt)
+    ClaudeAPI->>ClaudeCLI: subprocess.run("claude --model ...", prompt)
+    ClaudeCLI->>Backend: API call (Anthropic or Bedrock)
+    Backend-->>ClaudeCLI: response
+    ClaudeCLI-->>ClaudeAPI: stdout
+    ClaudeAPI-->>Orchestrator: result
+    Orchestrator-->>Agent: result
+    Agent-->>Orchestrator: processed output
+    Orchestrator-->>User: final results
+```
+
+**Advantages:**
+- Fast iteration with minimal overhead
+- Unified interface for both Anthropic and Bedrock
+- Automatic model selection via environment variables
+- Works with existing Claude CLI configuration
+
+**Use Cases:**
+- Local development
+- Rapid prototyping
+- Testing with different AI backends
+- Personal projects
+
+### SDK Execution Mode (Fallback)
+
+Direct API calls using Python SDKs when Claude CLI is not available.
 
 ```mermaid
 sequenceDiagram
@@ -191,6 +239,16 @@ sequenceDiagram
     Agent-->>Orchestrator: processed output
     Orchestrator-->>User: final results
 ```
+
+**Advantages:**
+- No external dependencies (CLI not required)
+- Direct control over API parameters
+- Simpler error handling
+
+**Use Cases:**
+- Environments without Claude CLI
+- Programmatic integration
+- CI/CD pipelines without CLI
 
 ### Docker Execution Mode
 
@@ -358,11 +416,21 @@ graph LR
 
 ### Environment Variables
 
-#### Anthropic API Mode
+#### CLI Mode with Bedrock (Recommended)
+- `CLAUDE_CODE_USE_BEDROCK=1` - Enable Bedrock via Claude CLI
+- `BEDROCK_MODEL` - Bedrock model ID (e.g., `global.anthropic.claude-sonnet-4-5-20250929-v1:0`)
+- `AWS_ACCESS_KEY_ID` - AWS access key
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key
+- `AWS_SESSION_TOKEN` - (Optional) AWS session token
+
+#### CLI Mode with Anthropic API
+- `ANTHROPIC_API_KEY` - (Optional) API key override for Claude CLI
+
+#### SDK Mode - Anthropic API
 - `ANTHROPIC_API_KEY` - API key for Anthropic API
 
-#### AWS Bedrock Mode
-- `USE_BEDROCK=1` - Enable Bedrock mode
+#### SDK Mode - AWS Bedrock (Docker)
+- `USE_BEDROCK=1` - Enable Bedrock mode (SDK)
 - `AWS_ACCESS_KEY_ID` - AWS access key
 - `AWS_SECRET_ACCESS_KEY` - AWS secret key
 - `AWS_SESSION_TOKEN` - (Optional) AWS session token
@@ -396,12 +464,14 @@ outputs/website-orchestrator/
 - Each agent receives context from previous agents
 - Ensures coherent output across all phases
 
-### 2. Dual Execution Modes
-- **Local Mode**: Fast iteration, direct API calls
-- **Docker Mode**: Isolated execution, reproducible environments
+### 2. Three Execution Modes
+- **CLI Mode**: Claude CLI subprocess execution, supports both Anthropic and Bedrock
+- **Docker Mode**: Containerized agents with environment isolation
+- **SDK Mode**: Direct API calls via Python SDKs (fallback)
 
 ### 3. Flexible AI Backend
-- **Anthropic API**: Direct Claude access
+- **Claude CLI**: Unified interface for Anthropic API and AWS Bedrock
+- **Anthropic API**: Direct Claude access via SDK
 - **AWS Bedrock**: Enterprise-grade inference with AWS infrastructure
 
 ### 4. Context Passing
