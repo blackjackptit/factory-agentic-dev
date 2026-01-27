@@ -1,32 +1,50 @@
 #!/usr/bin/env python3
 """
 Claude API Client for Orchestrator
-Provides interface to communicate with Claude via Anthropic API or AWS Bedrock
+Provides interface to communicate with Claude via CLI, Anthropic API, or AWS Bedrock
 """
 
 import os
 import json
+import shutil
+import subprocess
 from typing import Optional, Dict, Any
 
 
 class ClaudeAPI:
-    """Client for Claude AI via Anthropic API or AWS Bedrock"""
+    """Client for Claude AI via CLI, Anthropic API, or AWS Bedrock"""
 
-    def __init__(self, default_cwd: Optional[str] = None):
+    def __init__(self, default_cwd: Optional[str] = None, prefer_cli: bool = True):
         """
         Initialize Claude API client
 
         Args:
-            default_cwd: Default working directory (for context, not used in API calls)
+            default_cwd: Default working directory
+            prefer_cli: Prefer Claude CLI over SDK if available (default: True)
         """
         self.default_cwd = default_cwd
+        self.prefer_cli = prefer_cli
+        self.use_cli = False
         self.use_bedrock = os.environ.get("USE_BEDROCK", "0") == "1" or \
                           os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0") == "1"
 
-        if self.use_bedrock:
+        # Determine execution mode
+        if prefer_cli and shutil.which("claude"):
+            self.use_cli = True
+            self._init_cli()
+        elif self.use_bedrock:
             self._init_bedrock()
         else:
             self._init_anthropic()
+
+    def _init_cli(self):
+        """Initialize Claude CLI mode"""
+        self.mode = "cli"
+        # Get Bedrock model from environment or use default
+        if self.use_bedrock:
+            self.model = os.environ.get("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-5-20250929-v1:0")
+        else:
+            self.model = None  # Will use default Claude CLI model
 
     def _init_anthropic(self):
         """Initialize Anthropic API client"""
@@ -37,6 +55,7 @@ class ClaudeAPI:
                 raise ValueError("ANTHROPIC_API_KEY environment variable not set")
             self.client = anthropic.Anthropic(api_key=api_key)
             self.model = "claude-sonnet-4-5-20250929"
+            self.mode = "anthropic"
         except ImportError:
             raise ImportError("anthropic package not installed. Run: pip install anthropic")
 
@@ -55,6 +74,7 @@ class ClaudeAPI:
                 aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
                 aws_session_token=os.environ.get("AWS_SESSION_TOKEN")
             )
+            self.mode = "bedrock"
         except ImportError:
             raise ImportError("boto3 package not installed. Run: pip install boto3")
 
@@ -64,17 +84,76 @@ class ClaudeAPI:
 
         Args:
             prompt: The prompt to send
-            cwd: Working directory (for context only)
-            timeout: Request timeout in seconds (not fully implemented)
+            cwd: Working directory (for CLI mode)
+            timeout: Request timeout in seconds
 
         Returns:
             Dict with 'response' and 'success' keys
         """
         try:
-            if self.use_bedrock:
+            if self.use_cli:
+                return self._query_cli(prompt, cwd, timeout)
+            elif self.use_bedrock:
                 return self._query_bedrock(prompt)
             else:
                 return self._query_anthropic(prompt)
+        except Exception as e:
+            return {
+                "response": str(e),
+                "success": False,
+                "error": str(e)
+            }
+
+    def _query_cli(self, prompt: str, cwd: Optional[str] = None, timeout: int = 600) -> Dict[str, Any]:
+        """Query Claude via CLI"""
+        try:
+            working_dir = cwd or self.default_cwd
+
+            cmd = [
+                "claude",
+                "--dangerously-skip-permissions",
+                "--print",
+            ]
+
+            # If using Bedrock, specify the model explicitly
+            if self.use_bedrock and self.model:
+                cmd.extend(["--model", self.model])
+
+            cmd.extend(["-p", prompt])
+
+            result = subprocess.run(
+                cmd,
+                cwd=working_dir,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+
+            if result.returncode == 0:
+                return {
+                    "response": result.stdout,
+                    "success": True
+                }
+            else:
+                # Return detailed error information
+                error_msg = f"Claude CLI returned exit code {result.returncode}"
+                if result.stderr:
+                    error_msg += f"\nStderr: {result.stderr}"
+                if result.stdout:
+                    error_msg += f"\nStdout: {result.stdout}"
+
+                return {
+                    "response": error_msg,
+                    "success": False,
+                    "error": error_msg
+                }
+
+        except subprocess.TimeoutExpired:
+            return {
+                "response": "Claude CLI timeout",
+                "success": False,
+                "error": "Claude CLI timeout"
+            }
         except Exception as e:
             return {
                 "response": str(e),
@@ -151,7 +230,10 @@ class ClaudeAPI:
     def health_check(self) -> bool:
         """Check if Claude API is available"""
         try:
-            if self.use_bedrock:
+            if self.use_cli:
+                # Check if 'claude' command exists
+                return shutil.which("claude") is not None
+            elif self.use_bedrock:
                 # Check if AWS credentials are set
                 return bool(os.environ.get("AWS_ACCESS_KEY_ID") and
                           os.environ.get("AWS_SECRET_ACCESS_KEY"))
@@ -160,3 +242,15 @@ class ClaudeAPI:
                 return bool(os.environ.get("ANTHROPIC_API_KEY"))
         except Exception:
             return False
+
+    def get_mode(self) -> str:
+        """Get current execution mode"""
+        if self.use_cli:
+            if self.use_bedrock:
+                return f"CLI (Bedrock: {self.model})"
+            else:
+                return "CLI (Anthropic)"
+        elif self.use_bedrock:
+            return f"Bedrock SDK ({self.model})"
+        else:
+            return f"Anthropic SDK ({self.model})"

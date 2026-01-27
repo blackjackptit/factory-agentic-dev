@@ -112,6 +112,17 @@ Examples:
         if args.docker_use_bedrock:
             print(f"Bedrock Region: {args.docker_bedrock_region}")
             print(f"Bedrock Model: {args.docker_bedrock_model}")
+    else:
+        # Show API mode for local execution
+        from claude_api import ClaudeAPI
+        import os
+        use_bedrock = os.environ.get("USE_BEDROCK", "0") == "1" or \
+                     os.environ.get("CLAUDE_CODE_USE_BEDROCK", "0") == "1"
+        if use_bedrock:
+            bedrock_model = os.environ.get("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-5-20250929-v1:0")
+            print(f"AI Mode: Claude CLI with Bedrock ({bedrock_model})")
+        else:
+            print(f"AI Mode: Claude CLI (Anthropic)")
     print()
 
     # Setup project directory
