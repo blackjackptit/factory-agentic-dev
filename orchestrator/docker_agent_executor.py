@@ -73,6 +73,7 @@ def execute_agent(task):
         class MockOrchestrator:
             def __init__(self):
                 self.project_dir = "/workspace"
+                self.output_dir = "/output"
                 from claude_api import ClaudeAPI
                 self.api = ClaudeAPI(self.project_dir)
 
@@ -94,6 +95,7 @@ def execute_agent(task):
         class MockOrchestrator:
             def __init__(self):
                 self.project_dir = "/workspace"
+                self.output_dir = "/output"
                 from claude_api import ClaudeAPI
                 self.api = ClaudeAPI(self.project_dir)
 
@@ -116,6 +118,7 @@ def execute_agent(task):
         class MockOrchestrator:
             def __init__(self):
                 self.project_dir = "/workspace"
+                self.output_dir = "/output"
                 from claude_api import ClaudeAPI
                 self.api = ClaudeAPI(self.project_dir)
 
